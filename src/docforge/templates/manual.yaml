@@ -12,8 +12,11 @@ variables:
   geometry:
     - margin=25mm
   fontsize: 11pt
+  mainfont: DejaVu Serif
+  sansfont: DejaVu Sans
+  monofont: DejaVu Sans Mono
   colorlinks: true
   linkcolor: black
   urlcolor: blue
-  lof: true
+  lof: false # set true once the docs contain captioned figures (e.g. Mermaid diagrams)
   lot: false

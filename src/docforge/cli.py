@@ -85,3 +85,33 @@ def check(
             typer.echo(f.to_text())
         typer.echo(f"{summary['error']} error(s), {summary['warn']} warning(s), {summary['info']} info")
     raise typer.Exit(1 if summary["error"] else 0)
+
+
+class BuildFormat(StrEnum):
+    pdf = "pdf"
+    tex = "tex"
+
+
+@app.command()
+def build(
+    path: RepoPath = Path("."),
+    out: Annotated[Path | None, typer.Option("--out", help="Output directory (default documentation/build).")] = None,
+    fmt: Annotated[BuildFormat, typer.Option("--format", help="pdf, or tex to inspect the LaTeX.")] = BuildFormat.pdf,
+    strict: Annotated[bool, typer.Option("--strict", help="Fail if a Mermaid diagram cannot be rendered.")] = False,
+) -> None:
+    """Build the versioned technical manual: Markdown -> pandoc -> LaTeX -> PDF."""
+    from docforge.build import BuildError
+    from docforge.build import build as run_build
+    from docforge.config import ConfigError, load
+
+    try:
+        result = run_build(load(path), out_dir=out, fmt=fmt.value, strict=strict)
+    except ConfigError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    except BuildError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(exc.code) from exc
+    for warning in result.warnings:
+        typer.echo(f"warning: {warning}", err=True)
+    typer.echo(f"{result.output} ({len(result.chapters)} chapters, version {result.version.describe})")
