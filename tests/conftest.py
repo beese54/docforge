@@ -8,6 +8,12 @@ def git(root: Path, *args: str) -> str:
     return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout
 
 
+@pytest.fixture(autouse=True)
+def isolated_ledger(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Never read or write the developer's real ~/.docforge usage ledger from tests."""
+    monkeypatch.setenv("DOCFORGE_HOME", str(tmp_path_factory.mktemp("docforge-home")))
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """An empty git repository with an identity configured."""
