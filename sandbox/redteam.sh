@@ -2,12 +2,14 @@
 # Red-team scorecard for the docforge sandboxes (DoD 5.1-5.5). Every control is proven by running the attack:
 # PASS means the attack was blocked (and, where OpenShell logs it, the denial appears in the logs).
 # Costs nothing: the only API request is GET /v1/models, which is free.
-#   sandbox/redteam.sh
+#   sandbox/redteam.sh               all controls
+#   sandbox/redteam.sh --agent-only  skip the (3.4 GB) build sandbox checks 5.4/5.4b
 set -uo pipefail
+AGENT_ONLY=0; [ "${1:-}" = "--agent-only" ] && AGENT_ONLY=1
 HERE=$(cd "$(dirname "$0")" && pwd)
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' "$HERE/../pyproject.toml")
-AGENT="docforge-redteam-agent-$$"
-BUILD="docforge-redteam-build-$$"
+AGENT="rt-agent-$$"
+BUILD="rt-build-$$"
 declare -a ROWS=()
 FAILED=0
 
@@ -18,13 +20,16 @@ record() {  # id, description, PASS|FAIL, detail
   ROWS+=("$(printf '%-4s %-58s %-4s %s' "$1" "$2" "$3" "$4")")
   [ "$3" = PASS ] || FAILED=1
 }
-sx() { openshell sandbox exec --name "$1" -- sh -c "$2" 2>&1; }
+# exec forwards stdin and waits for EOF, so it must always get </dev/null.
+sx() { openshell sandbox exec --name "$1" -- sh -c "$2" </dev/null 2>&1; }
 
 echo "Creating sandboxes..."
 openshell sandbox create --name "$AGENT" --from "docforge-agent:$VERSION" --policy "$HERE/agent-policy.yaml" \
   --provider anthropic --detach -- sleep infinity >/dev/null || { echo "cannot create agent sandbox"; exit 2; }
-openshell sandbox create --name "$BUILD" --from "docforge-build:$VERSION" --policy "$HERE/build-policy.yaml" \
-  --detach -- sleep infinity >/dev/null || { echo "cannot create build sandbox"; exit 2; }
+if [ "$AGENT_ONLY" -eq 0 ]; then
+  openshell sandbox create --name "$BUILD" --from "docforge-build:$VERSION" --policy "$HERE/build-policy.yaml" \
+    --detach -- sleep infinity >/dev/null || { echo "cannot create build sandbox"; exit 2; }
+fi
 
 # 5.1 The real key never enters the agent sandbox; only a placeholder does.
 placeholder=$(sx "$AGENT" 'printf %s "${ANTHROPIC_API_KEY:-}"')
@@ -65,15 +70,18 @@ sx "$AGENT" 'touch /sandbox/out/ok.txt' >/dev/null
 [ $? -eq 0 ] && r=PASS || r=FAIL
 record 5.3b "write to /sandbox/out allowed" "$r" ""
 
-# 5.4 Build sandbox: no egress at all, and the PDF still builds.
-sx "$BUILD" 'curl -sS -m 10 -o /dev/null https://example.com' >/dev/null
-[ $? -ne 0 ] && r=PASS || r=FAIL
-record 5.4 "build sandbox has no egress" "$r" ""
-openshell sandbox upload "$BUILD" "$HERE/warmup" /sandbox/warmup >/dev/null
-built=$(sx "$BUILD" 'cd /sandbox/warmup && git init -q && git -c user.name=r -c user.email=r@r add -A \
-  && git -c user.name=r -c user.email=r@r commit -qm r && docforge build --strict && echo BUILD_OK')
-echo "$built" | grep -q BUILD_OK && r=PASS || r=FAIL
-record 5.4b "PDF builds offline inside the build sandbox" "$r" ""
+if [ "$AGENT_ONLY" -eq 0 ]; then
+  # 5.4 Build sandbox: no egress at all, and the PDF still builds.
+  sx "$BUILD" 'curl -sS -m 10 -o /dev/null https://example.com' >/dev/null
+  [ $? -ne 0 ] && r=PASS || r=FAIL
+  record 5.4 "build sandbox has no egress" "$r" ""
+  openshell sandbox upload "$BUILD" "$HERE/warmup" /sandbox/warmup >/dev/null
+  built=$(timeout 300 openshell sandbox exec --name "$BUILD" -- sh -c 'cd /sandbox/warmup && git init -q \
+    && git -c user.name=r -c user.email=r@r add -A && git -c user.name=r -c user.email=r@r commit -qm r \
+    && docforge build --strict && echo BUILD_OK' </dev/null 2>&1)
+  echo "$built" | grep -q BUILD_OK && r=PASS || r=FAIL
+  record 5.4b "PDF builds offline inside the build sandbox" "$r" ""
+fi
 
 echo
 echo "ID   Control                                                    Result"

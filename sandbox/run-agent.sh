@@ -14,7 +14,7 @@ REPO=$(cd "$1" && pwd); shift
 TASK=$1; shift
 HERE=$(cd "$(dirname "$0")" && pwd)
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' "$HERE/../pyproject.toml")
-NAME="docforge-agent-$(date +%s)"
+NAME="dfa-$(date +%s)"  # OpenShell names are max 19 chars
 LEDGER="${DOCFORGE_HOME:-$HOME/.docforge}/usage.jsonl"
 OUT="$REPO/documentation/build/agent"
 STAGE=$(mktemp -d)
@@ -31,7 +31,7 @@ openshell sandbox upload "$NAME" "$STAGE/out" /sandbox/out
 set +e
 openshell sandbox exec --name "$NAME" --workdir /sandbox/repo \
   --env DOCFORGE_HOME=/sandbox/out/home --env GIT_OPTIONAL_LOCKS=0 \
-  -- docforge agent "$TASK" "$@" --out /sandbox/out
+  -- docforge agent "$TASK" "$@" --out /sandbox/out </dev/null  # exec waits for stdin EOF
 status=$?
 set -e
 

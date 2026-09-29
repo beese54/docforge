@@ -94,3 +94,9 @@ Windows 11 host
   uid 1000, Mermaid included), policies, run-agent.sh, redteam.sh (syntax-checked; policies unvalidated — 0.1.2 has no `policy prove`).
   Likely fix (needs user): `wsl --update` (newer WSL ships a 6.6 kernel), then `wsl --shutdown`, then sandbox/redteam.sh.
   T10/T11 NOT run: the key lives only in the OpenShell gateway, so no sandbox = no model access. $0 spent.
+- 2026-09-30: user ran `wsl --update` -> WSL 3.0.1, kernel 6.18.40. The Landlock blocker is FIXED (sandbox gets past the probe).
+  NEW BLOCKER: OpenShell's Docker driver runs the supervisor on the "host network" and dials the gateway at 127.0.0.1:17670,
+  but Docker Desktop's host network is its own VM (192.168.65.x), so the supervisor can't reach the gateway ("Startup configuration fetch failed").
+  VM driver: still fails in-guest ("read /proc/self/status: Permission denied"). Podman: OpenShell needs 5.x, Ubuntu 24.04 has 4.9.
+  Proposed fix (needs user approval, blocked by permission policy): a native Docker engine inside Ubuntu as a separate systemd
+  service (docker-openshell, own socket/data-root/bridge), with OpenShell's docker socket_path pointed at it. Gateway left on docker.

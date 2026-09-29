@@ -12,7 +12,8 @@ COPY dist/docforge-*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/docforge-*.whl && rm /tmp/docforge-*.whl
 
 RUN groupadd --gid 1000 sandbox && useradd --uid 1000 --gid sandbox --create-home sandbox \
-    && install -d -o sandbox -g sandbox /sandbox
+    && install -d -o sandbox -g sandbox /sandbox /sandbox/repo /sandbox/out
+# Both must exist at creation: Landlock rules (agent-policy.yaml) can only name existing paths.
 WORKDIR /sandbox
 USER sandbox
 # Uploaded repos are owned by the sandbox user; git refuses "dubious ownership" otherwise.
