@@ -1,0 +1,48 @@
+# docforge: documentation checks. The model is never called in CI (the agent runs on demand in a sandbox).
+name: docforge
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Where CI installs docforge from. (uncertain — verify with developer: set this to your docforge repo or tag)
+  DOCFORGE_SPEC: "docforge @ git+https://github.com/beese54/docforge"
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # drift detection needs history
+      - uses: astral-sh/setup-uv@v6
+      - name: docforge check --strict
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then BASE="origin/${{ github.base_ref }}";
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then BASE="${{ github.event.before }}";
+          else BASE="HEAD~1"; fi
+          uvx --from "$DOCFORGE_SPEC" docforge check --strict --base "$BASE"
+
+  manual:
+    runs-on: ubuntu-24.04
+    needs: check
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # version string comes from git describe
+      - uses: astral-sh/setup-uv@v6
+      - name: Install pandoc, tectonic, mermaid-cli
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq pandoc
+          curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh && sudo mv tectonic /usr/local/bin/
+          npm install -g @mermaid-js/mermaid-cli@11
+      - name: docforge build
+        run: uvx --from "$DOCFORGE_SPEC" docforge build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manual
+          path: documentation/build/*.pdf

@@ -1,0 +1,40 @@
+# docforge configuration. Docs: https://github.com/beese54/docforge  (uncertain — verify with developer)
+
+[project]
+name = "$name"
+manual_title = "$name Technical Manual"
+
+# [docs]
+# required = [...]            # defaults to README, CHANGELOG and the 12 docs/*.md files
+
+# Impact map: when files matching `globs` change, one of `docs` should change too.
+# adr_worthy categories fail `docforge check --strict` (CI) instead of only warning.
+# This map was guessed by `docforge init` from the repository layout. Review it.
+$impact
+[manual]
+# Chapter order for the PDF manual. Globs are expanded in sorted order.
+chapters = [
+  "README.md",
+  "docs/ARCHITECTURE.md",
+  "docs/DESIGN.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/DATA_MODEL.md",
+  "docs/API.md",
+  "docs/SECURITY.md",
+  "docs/DEPLOYMENT.md",
+  "docs/TESTING.md",
+  "docs/OPERATIONS.md",
+  "docs/MAINTENANCE.md",
+  "docs/TROUBLESHOOTING.md",
+  "docs/DEPENDENCIES.md",
+  "docs/adr/[0-9]*.md",
+  "CHANGELOG.md",
+]
+
+[budget]
+monthly_usd = 10.0
+
+[budget.per_run_usd]
+impact = 0.50
+adr = 0.30
+bootstrap = 3.00
