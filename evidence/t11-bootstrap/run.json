@@ -1,0 +1,31 @@
+{
+  "run_id": "dcd26d9a9181",
+  "command": "bootstrap",
+  "status": "ok",
+  "cost_usd": 1.400071,
+  "turns": 28,
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/API.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DATA_MODEL.md",
+    "docs/DEPENDENCIES.md",
+    "docs/DEPLOYMENT.md",
+    "docs/DESIGN.md",
+    "docs/HOW_IT_WORKS.md",
+    "docs/MAINTENANCE.md",
+    "docs/OPERATIONS.md",
+    "docs/SECURITY.md",
+    "docs/TESTING.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/adr/001-single-client-side-markdown-pipeline.md",
+    "docs/adr/002-sanitiser-immediately-after-rehype-raw.md",
+    "docs/adr/003-contained-print-service.md",
+    "docs/adr/004-composite-string-sort-key-for-reading-order.md",
+    "docs/adr/005-report-every-markdown-repair.md",
+    "docs/adr/006-webkitgetasentry-for-folder-drop.md",
+    "docs/adr/007-playwright-official-image-non-root.md",
+    "docs/adr/008-self-hosted-fonts-no-third-party-requests.md"
+  ]
+}
