@@ -84,3 +84,6 @@ Windows 11 host
 - Gateway fix: `OPENSHELL_COMPUTE_DRIVER=docker` in ~/.config/openshell/gateway.env + `wsl --terminate Ubuntu-24.04` (stale group membership) → gateway running, mTLS connected.
 - BLOCKED: Anthropic Console was down, so there is no API key yet. Resume at: create key → `read -rs` → `openshell provider create --name anthropic --type anthropic --credential ANTHROPIC_API_KEY` → `unset`.
 - Not started: T0–T8 (need no key or credit).
+- 2026-09-29 (later): T0–T8 built and committed (133 tests passing, no API spend). The WSL toolchain now has pandoc 3.1.3, tectonic 0.17, Node 22 (in ~/.local), mermaid-cli 11 + chrome-headless-shell, uv.
+- Key setup gotcha: OpenShell 0.1.2 has NO provider profiles. Import sandbox/anthropic-profile.yaml before `provider create`.
+- Next: T9 (sandbox image + policy + redteam.sh) once the provider exists; T10/T11 spend credit and need approval first.

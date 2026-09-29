@@ -208,6 +208,28 @@ def agent_bootstrap(path: RepoPath = Path("."), out: OutDir = None) -> None:
 
 
 @app.command()
+def apply(
+    patch: Annotated[Path, typer.Argument(help="docforge.patch from an agent run.", exists=True, dir_okay=False)],
+    path: RepoPath = Path("."),
+    branch: Annotated[str | None, typer.Option("--branch", help="Branch name (default docforge/<task>-<sha>).")] = None,
+) -> None:
+    """Apply a reviewed agent patch on a new branch and commit it. Only doc paths are accepted; never pushes."""
+    from docforge import git
+    from docforge.apply import ApplyError, apply_patch
+
+    if not git.is_repo(path):
+        typer.echo("error: not a git repository", err=True)
+        raise typer.Exit(2)
+    try:
+        result = apply_patch(path, patch, branch)
+    except ApplyError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"committed {result.commit} on branch {result.branch}: {', '.join(result.files)}")
+    typer.echo(f"Next: git push -u origin {result.branch} && gh pr create --fill")
+
+
+@app.command()
 def usage(
     last: Annotated[bool, typer.Option("--last", help="Only the most recent run.")] = False,
 ) -> None:
