@@ -61,9 +61,12 @@ def check(
         bool, typer.Option("--strict", help="CI mode: soft rules and ADR-worthy drift become errors.")
     ] = False,
     output: Annotated[OutputFormat, typer.Option("--format", help="Output format.")] = OutputFormat.text,
+    base: Annotated[
+        str | None, typer.Option("--base", help="Git ref to compare against for drift (default: merge-base with main).")
+    ] = None,
 ) -> None:
-    """Check documentation structure, sections, links, ADRs and uncertain markers. Exit 1 on errors."""
-    from docforge import checks
+    """Check docs: structure, sections, links, ADRs, uncertain markers and code/doc drift. Exit 1 on errors."""
+    from docforge import checks, drift
     from docforge.config import ConfigError, load
     from docforge.findings import Severity
 
@@ -73,7 +76,7 @@ def check(
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(2) from exc
 
-    findings = checks.run(cfg, strict=strict)
+    findings = checks.run(cfg, strict=strict, extra=(drift.make_check(base),))
     summary = {str(s): sum(1 for f in findings if f.severity == s) for s in Severity}
     if output is OutputFormat.json:
         typer.echo(json.dumps({"findings": [f.to_dict() for f in findings], "summary": summary}, indent=2))
