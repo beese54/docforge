@@ -98,6 +98,15 @@ class BudgetGuard:
             )
         return max_tokens
 
+    def charge_worst_case(self, input_tokens: int, max_tokens: int, note: str, model: str = MODEL) -> float:
+        """An interrupted stream reports no usage. Charge the most it could have cost so the cap still holds;
+        the ledger then over-states this call, never under-states it."""
+        price = PRICES[model]
+        cost = input_tokens * price["cache_write"] + max_tokens * price["output"]
+        self.run_spent += cost
+        self._append(model, None, cost, note=f"worst case charged: {note}")
+        return cost
+
     def record(self, usage: Any, model: str = MODEL) -> float:
         cost = cost_of(model, usage)
         self.run_spent += cost

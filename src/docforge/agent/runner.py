@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import anthropic
+import httpx2  # the SDK's HTTP client; a stream cut mid-body surfaces as httpx2.RemoteProtocolError
 
 from docforge.agent import prompts
 from docforge.agent.budget import MODEL, BudgetExceeded, BudgetGuard
@@ -21,6 +23,8 @@ MAX_TURNS: dict[str, int] = {"impact": 40, "adr": 20, "bootstrap": 120}
 DEFAULT_MAX_TURNS = 40
 EFFORT = "medium"
 PARTIAL_PATCH = "docforge.partial.patch"
+STREAM_ATTEMPTS = 3
+RETRY_BASE_SECONDS = 2.0
 
 
 class AgentError(Exception):
@@ -73,16 +77,27 @@ def run(
                 request: dict[str, Any] = {"model": MODEL, "system": _system(), "tools": TOOL_DEFS,
                                            "messages": messages}
                 counted = client.messages.count_tokens(**request)
-                max_tokens = guard.max_tokens_for(counted.input_tokens)
-                # Streaming: the SDK requires it for large max_tokens to avoid HTTP timeouts.
-                with client.messages.stream(
-                    **request,
-                    max_tokens=max_tokens,
-                    thinking={"type": "adaptive"},
-                    output_config={"effort": EFFORT},
-                    cache_control={"type": "ephemeral"},
-                ) as stream:
-                    response = stream.get_final_message()
+                for attempt in range(1, STREAM_ATTEMPTS + 1):
+                    max_tokens = guard.max_tokens_for(counted.input_tokens)
+                    try:
+                        # Streaming: the SDK requires it for large max_tokens to avoid HTTP timeouts.
+                        with client.messages.stream(
+                            **request,
+                            max_tokens=max_tokens,
+                            thinking={"type": "adaptive"},
+                            output_config={"effort": EFFORT},
+                            cache_control={"type": "ephemeral"},
+                        ) as stream:
+                            response = stream.get_final_message()
+                        break
+                    except (anthropic.APIConnectionError, httpx2.TransportError) as exc:
+                        # A dropped stream is safe to retry: no tool has run for this turn yet.
+                        charged = guard.charge_worst_case(counted.input_tokens, max_tokens, type(exc).__name__)
+                        trace.append(f"turn {turns:3d}  stream interrupted ({type(exc).__name__}), attempt "
+                                     f"{attempt}/{STREAM_ATTEMPTS}, worst case ${charged:.4f} charged")
+                        if attempt == STREAM_ATTEMPTS:
+                            raise AgentError(f"stream interrupted {STREAM_ATTEMPTS} times: {exc}") from exc
+                        time.sleep(RETRY_BASE_SECONDS * 2 ** (attempt - 1))
                 cost = guard.record(response.usage)
                 trace.append(f"turn {turns:3d}  ${cost:.4f}  stop={response.stop_reason}  "
                              f"out={getattr(response.usage, 'output_tokens', 0)}")
@@ -125,8 +140,9 @@ def run(
             raise AgentError(
                 "no Anthropic credentials (set ANTHROPIC_API_KEY or attach the OpenShell provider)"
             ) from exc
-    except AgentError as exc:
-        _write_failure(tools, guard, out_dir, turns, trace, str(exc))
+    except Exception as exc:
+        # Any failure, anticipated or not, keeps the trace and whatever documents were already paid for.
+        _write_failure(tools, guard, out_dir, turns, trace, f"{type(exc).__name__}: {exc}")
         raise
 
     return _write_outputs(tools, guard, out_dir, turns, trace)

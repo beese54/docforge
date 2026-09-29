@@ -191,16 +191,32 @@ def test_run_spend_accumulates_across_turns(project: Path) -> None:
 # --- API failure (DoD 4.3) -------------------------------------------------------------------------------------
 
 
+def dropped() -> Exception:
+    return httpx2.RemoteProtocolError("peer closed connection without sending complete message body")
+
+
+def conn_error() -> Exception:
+    return anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"))
+
+
+@pytest.fixture(autouse=True)
+def instant_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    from docforge.agent import runner
+
+    monkeypatch.setattr(runner, "RETRY_BASE_SECONDS", 0.0)
+
+
 @pytest.mark.parametrize(
-    "error",
+    "errors",
     [
-        anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages")),
-        reply(stop="refusal"),
-        reply(stop="max_tokens"),
+        [conn_error(), conn_error(), conn_error()],  # retried STREAM_ATTEMPTS times, then fails
+        [dropped(), dropped(), dropped()],
+        [reply(stop="refusal")],
+        [reply(stop="max_tokens")],
     ],
 )
-def test_failure_writes_no_patch(project: Path, error: Any) -> None:
-    client = FakeClient([reply(tool_call("write_doc", path="docs/API.md", content="# finished doc")), error])
+def test_failure_writes_no_patch(project: Path, errors: list[Any]) -> None:
+    client = FakeClient([reply(tool_call("write_doc", path="docs/API.md", content="# finished doc")), *errors])
     out = project / "out"
     with pytest.raises(AgentError):
         run(client, ToolLayer(root=project), guard(), "task", out)
@@ -210,6 +226,24 @@ def test_failure_writes_no_patch(project: Path, error: Any) -> None:
     assert "b/docs/API.md" in partial
     assert "FAILED" in (out / "trace.log").read_text()
     assert json.loads((out / "run.json").read_text())["status"] == "failed"
+
+
+def test_dropped_stream_is_retried_and_charged_worst_case(project: Path) -> None:
+    client = FakeClient([dropped(), reply(tool_call("finish", report="done"))])
+    g = guard()
+    result = run(client, ToolLayer(root=project), g, "task", project / "out")
+    assert result.turns == 1 and len(client.messages.requests) == 2
+    worst = next(r for r in read_ledger() if r.note.startswith("worst case charged"))
+    assert worst.cost_usd == pytest.approx(1000 * 2.5e-6 + 32_000 * 10e-6)  # input at cache-write + full output
+    assert g.run_spent == pytest.approx(worst.cost_usd + 1000 * 2e-6 + 500 * 10e-6)
+    assert "stream interrupted" in (project / "out/trace.log").read_text()
+
+
+def test_unexpected_error_still_saves_partial(project: Path) -> None:
+    client = FakeClient([reply(tool_call("write_doc", path="docs/API.md", content="# done")), ValueError("boom")])
+    with pytest.raises(ValueError):
+        run(client, ToolLayer(root=project), guard(), "task", project / "out")
+    assert (project / "out/docforge.partial.patch").exists()
 
 
 def test_failure_without_writes_has_no_partial_patch(project: Path) -> None:
