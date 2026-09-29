@@ -158,10 +158,14 @@ def _run_agent(path: Path, command: str, out: Path | None, base: str | None, tas
         raise typer.Exit(3) from exc
 
     guard = BudgetGuard(command, cfg.budget.per_run_usd.get(command, 0.50), cfg.budget.monthly_usd)
+    out_dir = out or path / DEFAULT_AGENT_OUT
     try:
-        result = run(client, ToolLayer(root=path, base=base), guard, task, out or path / DEFAULT_AGENT_OUT)
+        result = run(client, ToolLayer(root=path, base=base), guard, task, out_dir)
     except AgentError as exc:
-        typer.echo(f"error: {exc} (spent ${guard.run_spent:.4f}; no patch written)", err=True)
+        partial = out_dir / "docforge.partial.patch"
+        kept = f"; finished docs kept in {partial} for review" if partial.exists() else ""
+        typer.echo(f"error: {exc} (spent ${guard.run_spent:.4f}; no docforge.patch written{kept}; "
+                   f"see {out_dir / 'trace.log'})", err=True)
         raise typer.Exit(3) from exc
     typer.echo(f"report: {result.report_path}")
     typer.echo(f"patch:  {result.patch_path} ({len(result.files_changed)} file(s): {', '.join(result.files_changed)})")

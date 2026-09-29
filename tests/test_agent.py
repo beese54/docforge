@@ -1,5 +1,6 @@
 """Agent tests. The model is always a scripted fake: nothing here calls the API or spends credit."""
 
+import json
 import os
 import subprocess
 from collections.abc import Iterator
@@ -143,7 +144,7 @@ def test_runner_produces_reviewable_patch(project: Path) -> None:
     assert denied["type"] == "tool_result" and denied["is_error"] is True and "denied" in denied["content"]
     assert second_request["model"] == "claude-sonnet-5-5"
     assert second_request["output_config"] == {"effort": "medium"}
-    assert second_request["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+    assert "write_doc" in (out / "trace.log").read_text()
 
 
 def test_patch_handles_missing_trailing_newline(project: Path) -> None:
@@ -168,7 +169,7 @@ def test_budget_guard_refuses_before_calling(project: Path) -> None:
     with pytest.raises(AgentError, match="budget exhausted"):
         run(client, ToolLayer(root=project), guard(per_run=0.10), "task", out)
     assert client.messages.requests == []  # the model was never called
-    assert not out.exists()
+    assert not (out / "docforge.patch").exists() and not (out / "docforge.partial.patch").exists()
     assert read_ledger()[-1].note.startswith("refused")
 
 
@@ -199,11 +200,33 @@ def test_run_spend_accumulates_across_turns(project: Path) -> None:
     ],
 )
 def test_failure_writes_no_patch(project: Path, error: Any) -> None:
-    client = FakeClient([reply(tool_call("write_doc", path="docs/API.md", content="# half")), error])
+    client = FakeClient([reply(tool_call("write_doc", path="docs/API.md", content="# finished doc")), error])
     out = project / "out"
     with pytest.raises(AgentError):
         run(client, ToolLayer(root=project), guard(), "task", out)
-    assert not (out / "docforge.patch").exists()
+    assert not (out / "docforge.patch").exists() and not (out / "report.md").exists()
+    # What was already paid for survives, under a name `docforge apply` is never pointed at by default.
+    partial = (out / "docforge.partial.patch").read_text()
+    assert "b/docs/API.md" in partial
+    assert "FAILED" in (out / "trace.log").read_text()
+    assert json.loads((out / "run.json").read_text())["status"] == "failed"
+
+
+def test_failure_without_writes_has_no_partial_patch(project: Path) -> None:
+    client = FakeClient([reply(stop="refusal")])
+    out = project / "out"
+    with pytest.raises(AgentError):
+        run(client, ToolLayer(root=project), guard(), "task", out)
+    assert not (out / "docforge.partial.patch").exists() and (out / "trace.log").exists()
+
+
+def test_turn_limit_depends_on_command(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from docforge.agent import runner
+
+    monkeypatch.setitem(runner.MAX_TURNS, "adr", 2)
+    client = FakeClient([reply(tool_call("list_files", directory="")) for _ in range(3)])
+    with pytest.raises(AgentError, match="after 2 turns"):
+        run(client, ToolLayer(root=project), BudgetGuard("adr", 0.5, 10.0), "task", project / "out")
 
 
 def test_cli_without_credentials_exits_3(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:

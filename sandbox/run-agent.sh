@@ -48,7 +48,8 @@ openshell sandbox download "$NAME" /sandbox/out "$STAGE/back" </dev/null
 src="$STAGE/back"; [ -d "$STAGE/back/out" ] && src="$STAGE/back/out"
 if [ -f "$src/home/usage.jsonl" ]; then mkdir -p "$(dirname "$LEDGER")"; cp "$src/home/usage.jsonl" "$LEDGER"; fi
 mkdir -p "$OUT"
-for f in docforge.patch report.md policy.log run.json; do [ -f "$src/$f" ] && cp "$src/$f" "$OUT/"; done
+rm -f "$OUT/docforge.patch" "$OUT/docforge.partial.patch" "$OUT/report.md"
+for f in docforge.patch docforge.partial.patch report.md policy.log trace.log run.json; do [ -f "$src/$f" ] && cp "$src/$f" "$OUT/"; done
 
 echo "sandbox exit: $status   outputs: $OUT"
 [ "$status" -eq 0 ] && echo "Review $OUT/report.md, then: docforge apply $OUT/docforge.patch --path $REPO"
