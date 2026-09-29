@@ -1,0 +1,25 @@
+From ecfa16ad5c0fc1ade719b307ced772cdeb6d8d8a Mon Sep 17 00:00:00 2001
+From: beese54 <barrygacy@gmail.com>
+Date: Wed, 30 Sep 2026 07:37:06 +0800
+Subject: [PATCH 3/3] ci: run docforge on pushes to master too
+
+---
+ .github/workflows/docforge.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.github/workflows/docforge.yml b/.github/workflows/docforge.yml
+index 417e4e9..58cb724 100644
+--- a/.github/workflows/docforge.yml
++++ b/.github/workflows/docforge.yml
+@@ -4,7 +4,7 @@ name: docforge
+ on:
+   pull_request:
+   push:
+-    branches: [main]
++    branches: [main, master]
+   workflow_dispatch:
+ 
+ env:
+-- 
+2.43.0
+

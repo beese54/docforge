@@ -1,0 +1,750 @@
+From 24c6b4f4b5705e350181500fcf24e1530b1f5d9d Mon Sep 17 00:00:00 2001
+From: beese54 <barrygacy@gmail.com>
+Date: Wed, 30 Sep 2026 07:35:37 +0800
+Subject: [PATCH 1/3] docs: docforge scaffold (init)
+
+---
+ .github/workflows/docforge.yml            | 48 +++++++++++++++
+ .gitignore                                |  3 +
+ CHANGELOG.md                              | 14 +++++
+ docforge.toml                             | 75 +++++++++++++++++++++++
+ docs/API.md                               | 26 ++++++++
+ docs/ARCHITECTURE.md                      | 27 ++++++++
+ docs/DATA_MODEL.md                        | 31 ++++++++++
+ docs/DEPENDENCIES.md                      | 16 +++++
+ docs/DEPLOYMENT.md                        | 23 +++++++
+ docs/DESIGN.md                            | 39 ++++++++++++
+ docs/HOW_IT_WORKS.md                      | 18 ++++++
+ docs/MAINTENANCE.md                       | 56 +++++++++++++++++
+ docs/OPERATIONS.md                        | 19 ++++++
+ docs/SECURITY.md                          | 63 +++++++++++++++++++
+ docs/TESTING.md                           | 39 ++++++++++++
+ docs/TROUBLESHOOTING.md                   | 17 +++++
+ docs/adr/000-template.md                  | 31 ++++++++++
+ documentation/manual.yaml                 | 22 +++++++
+ documentation/templates/manual-header.tex | 19 ++++++
+ 19 files changed, 586 insertions(+)
+ create mode 100644 .github/workflows/docforge.yml
+ create mode 100644 CHANGELOG.md
+ create mode 100644 docforge.toml
+ create mode 100644 docs/API.md
+ create mode 100644 docs/ARCHITECTURE.md
+ create mode 100644 docs/DATA_MODEL.md
+ create mode 100644 docs/DEPENDENCIES.md
+ create mode 100644 docs/DEPLOYMENT.md
+ create mode 100644 docs/DESIGN.md
+ create mode 100644 docs/HOW_IT_WORKS.md
+ create mode 100644 docs/MAINTENANCE.md
+ create mode 100644 docs/OPERATIONS.md
+ create mode 100644 docs/SECURITY.md
+ create mode 100644 docs/TESTING.md
+ create mode 100644 docs/TROUBLESHOOTING.md
+ create mode 100644 docs/adr/000-template.md
+ create mode 100644 documentation/manual.yaml
+ create mode 100644 documentation/templates/manual-header.tex
+
+diff --git a/.github/workflows/docforge.yml b/.github/workflows/docforge.yml
+new file mode 100644
+index 0000000..417e4e9
+--- /dev/null
++++ b/.github/workflows/docforge.yml
+@@ -0,0 +1,48 @@
++# docforge: documentation checks. The model is never called in CI (the agent runs on demand in a sandbox).
++name: docforge
++
++on:
++  pull_request:
++  push:
++    branches: [main]
++  workflow_dispatch:
++
++env:
++  # Where CI installs docforge from. (uncertain — verify with developer: set this to your docforge repo or tag)
++  DOCFORGE_SPEC: "docforge @ git+https://github.com/beese54/docforge"
++
++jobs:
++  check:
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          fetch-depth: 0 # drift detection needs history
++      - uses: astral-sh/setup-uv@v6
++      - name: docforge check --strict
++        run: |
++          if [ "${{ github.event_name }}" = "pull_request" ]; then BASE="origin/${{ github.base_ref }}";
++          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then BASE="${{ github.event.before }}";
++          else BASE="HEAD~1"; fi
++          uvx --from "$DOCFORGE_SPEC" docforge check --strict --base "$BASE"
++
++  manual:
++    runs-on: ubuntu-24.04
++    needs: check
++    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          fetch-depth: 0 # version string comes from git describe
++      - uses: astral-sh/setup-uv@v6
++      - name: Install pandoc, tectonic, mermaid-cli
++        run: |
++          sudo apt-get update -qq && sudo apt-get install -y -qq pandoc
++          curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh && sudo mv tectonic /usr/local/bin/
++          npm install -g @mermaid-js/mermaid-cli@11
++      - name: docforge build
++        run: uvx --from "$DOCFORGE_SPEC" docforge build
++      - uses: actions/upload-artifact@v4
++        with:
++          name: manual
++          path: documentation/build/*.pdf
+diff --git a/.gitignore b/.gitignore
+index 240e049..a2eefa6 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -17,3 +17,6 @@ docs/screenshots/*
+ !docs/screenshots/dropzone.png
+ !docs/screenshots/reader.png
+ !docs/screenshots/repairs.png
++
++# docforge build output
++documentation/build/
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..6064325
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,14 @@
++# Changelog
++
++All meaningful changes to this project are recorded here. Format follows
++[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Git history is not a substitute.
++
++## [Unreleased]
++
++### Added
++
++### Changed
++
++### Security
++
++### Removed
+diff --git a/docforge.toml b/docforge.toml
+new file mode 100644
+index 0000000..355ef7a
+--- /dev/null
++++ b/docforge.toml
+@@ -0,0 +1,75 @@
++# docforge configuration. Docs: https://github.com/beese54/docforge  (uncertain — verify with developer)
++
++[project]
++name = "pilot-live"
++manual_title = "pilot-live Technical Manual"
++
++# [docs]
++# required = [...]            # defaults to README, CHANGELOG and the 12 docs/*.md files
++
++# Impact map: when files matching `globs` change, one of `docs` should change too.
++# adr_worthy categories fail `docforge check --strict` (CI) instead of only warning.
++# This map was guessed by `docforge init` from the repository layout. Review it.
++[[impact]]
++category = "dependencies"
++globs = ["package.json", "package-lock.json"]
++docs = ["docs/DEPENDENCIES.md"]
++adr_worthy = true
++
++[[impact]]
++category = "deployment"
++globs = ["Dockerfile", "**/Dockerfile", "docker-compose*.yml", "init.sh"]
++docs = ["docs/DEPLOYMENT.md", "docs/OPERATIONS.md"]
++adr_worthy = true
++
++[[impact]]
++category = "data"
++globs = ["**/types/domain.ts"]
++docs = ["docs/DATA_MODEL.md"]
++adr_worthy = true
++
++[[impact]]
++category = "security"
++globs = ["**/sanitize.*"]
++docs = ["docs/SECURITY.md"]
++adr_worthy = true
++
++[[impact]]
++category = "api"
++globs = ["server/**"]
++docs = ["docs/API.md"]
++adr_worthy = false
++
++[[impact]]
++category = "testing"
++globs = ["vitest.config.*"]
++docs = ["docs/TESTING.md"]
++adr_worthy = false
++
++[manual]
++# Chapter order for the PDF manual. Globs are expanded in sorted order.
++chapters = [
++  "README.md",
++  "docs/ARCHITECTURE.md",
++  "docs/DESIGN.md",
++  "docs/HOW_IT_WORKS.md",
++  "docs/DATA_MODEL.md",
++  "docs/API.md",
++  "docs/SECURITY.md",
++  "docs/DEPLOYMENT.md",
++  "docs/TESTING.md",
++  "docs/OPERATIONS.md",
++  "docs/MAINTENANCE.md",
++  "docs/TROUBLESHOOTING.md",
++  "docs/DEPENDENCIES.md",
++  "docs/adr/[0-9]*.md",
++  "CHANGELOG.md",
++]
++
++[budget]
++monthly_usd = 10.0
++
++[budget.per_run_usd]
++impact = 0.50
++adr = 0.30
++bootstrap = 2.19
+diff --git a/docs/API.md b/docs/API.md
+new file mode 100644
+index 0000000..e2c73b5
+--- /dev/null
++++ b/docs/API.md
+@@ -0,0 +1,26 @@
++# API
++
++> Behaviour, assumptions and side effects that a generated API spec does not capture.
++
++## Overview
++
++> uncertain — verify with developer
++
++## Endpoints
++
++> uncertain — verify with developer
++
++## Errors
++
++### <METHOD> <path>
++
++- Purpose:
++- Authentication:
++- Parameters:
++- Request example:
++- Response example:
++- Error codes:
++- Dependencies:
++- Side effects:
++
++> uncertain — verify with developer
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+new file mode 100644
+index 0000000..910bdd1
+--- /dev/null
++++ b/docs/ARCHITECTURE.md
+@@ -0,0 +1,27 @@
++# Architecture
++
++> Which components exist and how information flows between them.
++
++## Overview
++
++> uncertain — verify with developer
++
++## Components
++
++> uncertain — verify with developer
++
++## Information Flow
++
++> uncertain — verify with developer
++
++## External Systems
++
++> uncertain — verify with developer
++
++## Infrastructure
++
++> uncertain — verify with developer
++
++## Deployment Architecture
++
++> uncertain — verify with developer
+diff --git a/docs/DATA_MODEL.md b/docs/DATA_MODEL.md
+new file mode 100644
+index 0000000..f44c94b
+--- /dev/null
++++ b/docs/DATA_MODEL.md
+@@ -0,0 +1,31 @@
++# Data Model
++
++> Entities, relationships, constraints, ownership and business rules.
++
++## Overview
++
++> uncertain — verify with developer
++
++## Entities
++
++> uncertain — verify with developer
++
++## Relationships
++
++> uncertain — verify with developer
++
++## Constraints and Indexes
++
++> uncertain — verify with developer
++
++## Ownership and Retention
++
++> uncertain — verify with developer
++
++## Migrations
++
++> uncertain — verify with developer
++
++## Business Rules
++
++> uncertain — verify with developer
+diff --git a/docs/DEPENDENCIES.md b/docs/DEPENDENCIES.md
+new file mode 100644
+index 0000000..d61e086
+--- /dev/null
++++ b/docs/DEPENDENCIES.md
+@@ -0,0 +1,16 @@
++# Dependencies
++
++> Dependencies that would be hard to replace or could significantly affect the application.
++
++## Critical Dependencies
++
++### <dependency>
++
++- Purpose:
++- Current version:
++- Why it is used:
++- Replacement difficulty:
++- Upgrade considerations:
++- Known limitations:
++
++> uncertain — verify with developer
+diff --git a/docs/DEPLOYMENT.md b/docs/DEPLOYMENT.md
+new file mode 100644
+index 0000000..76af8d1
+--- /dev/null
++++ b/docs/DEPLOYMENT.md
+@@ -0,0 +1,23 @@
++# Deployment
++
++> How the system is built, configured and deployed, and how to roll back.
++
++## Environments
++
++> uncertain — verify with developer
++
++## Build
++
++> uncertain — verify with developer
++
++## Deploy
++
++> uncertain — verify with developer
++
++## Configuration
++
++> uncertain — verify with developer
++
++## Rollback
++
++> uncertain — verify with developer
+diff --git a/docs/DESIGN.md b/docs/DESIGN.md
+new file mode 100644
+index 0000000..63906b2
+--- /dev/null
++++ b/docs/DESIGN.md
+@@ -0,0 +1,39 @@
++# Design
++
++> Design intent: boundaries, abstractions and conventions, not a file listing.
++
++## Design Principles
++
++> uncertain — verify with developer
++
++## Component Boundaries
++
++> uncertain — verify with developer
++
++## Key Abstractions and Patterns
++
++> uncertain — verify with developer
++
++## Configuration Strategy
++
++> uncertain — verify with developer
++
++## Error Handling
++
++> uncertain — verify with developer
++
++## Logging
++
++> uncertain — verify with developer
++
++## Authentication and Authorisation
++
++> uncertain — verify with developer
++
++## State Management
++
++> uncertain — verify with developer
++
++## API Conventions
++
++> uncertain — verify with developer
+diff --git a/docs/HOW_IT_WORKS.md b/docs/HOW_IT_WORKS.md
+new file mode 100644
+index 0000000..77898db
+--- /dev/null
++++ b/docs/HOW_IT_WORKS.md
+@@ -0,0 +1,18 @@
++# How It Works
++
++> End-to-end workflows. For each: trigger, receiver, processing, services called, storage, async work, result, failure modes.
++
++## Workflows
++
++### Workflow: <name>
++
++1. Trigger:
++2. Received by:
++3. Processing:
++4. Services called:
++5. Data stored:
++6. Asynchronous work:
++7. Result:
++8. What can fail:
++
++> uncertain — verify with developer
+diff --git a/docs/MAINTENANCE.md b/docs/MAINTENANCE.md
+new file mode 100644
+index 0000000..d7f1ce6
+--- /dev/null
++++ b/docs/MAINTENANCE.md
+@@ -0,0 +1,56 @@
++# Maintenance
++
++> Written for the engineer who inherits this system.
++
++## Starting and Stopping
++
++> uncertain — verify with developer
++
++## Dependency Updates
++
++> uncertain — verify with developer
++
++## Database Migrations
++
++> uncertain — verify with developer
++
++## Secret Rotation
++
++> uncertain — verify with developer
++
++## Configuration Management
++
++> uncertain — verify with developer
++
++## Logs
++
++> uncertain — verify with developer
++
++## Backups
++
++> uncertain — verify with developer
++
++## Releases
++
++> uncertain — verify with developer
++
++## Making Production Changes
++
++> uncertain — verify with developer
++
++## Known Technical Debt
++
++> uncertain — verify with developer
++
++## Fragile Areas
++
++### Fragile area: <component>
++
++- Component:
++- Why it is sensitive:
++- What depends on it:
++- What must be tested before changing it:
++- Relevant files:
++- Relevant ADR:
++
++> uncertain — verify with developer
+diff --git a/docs/OPERATIONS.md b/docs/OPERATIONS.md
+new file mode 100644
+index 0000000..b163c46
+--- /dev/null
++++ b/docs/OPERATIONS.md
+@@ -0,0 +1,19 @@
++# Operations
++
++> Running the system day to day: monitoring, alerts, routine tasks, incidents.
++
++## Monitoring
++
++> uncertain — verify with developer
++
++## Alerts
++
++> uncertain — verify with developer
++
++## Routine Operations
++
++> uncertain — verify with developer
++
++## Incident Response
++
++> uncertain — verify with developer
+diff --git a/docs/SECURITY.md b/docs/SECURITY.md
+new file mode 100644
+index 0000000..ec74c87
+--- /dev/null
++++ b/docs/SECURITY.md
+@@ -0,0 +1,63 @@
++# Security
++
++> Security architecture, trust boundaries and who is responsible for what.
++
++## Trust Boundaries
++
++> uncertain — verify with developer
++
++## Authentication
++
++> uncertain — verify with developer
++
++## Authorisation
++
++> uncertain — verify with developer
++
++## Secrets Management
++
++> uncertain — verify with developer
++
++## Session Handling
++
++> uncertain — verify with developer
++
++## API Security
++
++> uncertain — verify with developer
++
++## Network Exposure
++
++> uncertain — verify with developer
++
++## Input Validation
++
++> uncertain — verify with developer
++
++## Dependency Security
++
++> uncertain — verify with developer
++
++## Logging and Audit
++
++> uncertain — verify with developer
++
++## Sensitive Data
++
++> uncertain — verify with developer
++
++## Rate Limiting
++
++> uncertain — verify with developer
++
++## Encryption and TLS
++
++> uncertain — verify with developer
++
++## Security Assumptions
++
++> uncertain — verify with developer
++
++## Responsibilities
++
++> uncertain — verify with developer
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+new file mode 100644
+index 0000000..1f01d22
+--- /dev/null
++++ b/docs/TESTING.md
+@@ -0,0 +1,39 @@
++# Testing
++
++> Testing strategy and what must pass before a change is accepted.
++
++## Strategy
++
++> uncertain — verify with developer
++
++## Unit Tests
++
++> uncertain — verify with developer
++
++## Integration Tests
++
++> uncertain — verify with developer
++
++## End-to-End Tests
++
++> uncertain — verify with developer
++
++## Security Tests
++
++> uncertain — verify with developer
++
++## Manual and Smoke Tests
++
++> uncertain — verify with developer
++
++## Test Environments and Data
++
++> uncertain — verify with developer
++
++## Running Tests
++
++> uncertain — verify with developer
++
++## Required Before Changes
++
++> uncertain — verify with developer
+diff --git a/docs/TROUBLESHOOTING.md b/docs/TROUBLESHOOTING.md
+new file mode 100644
+index 0000000..c0a9c34
+--- /dev/null
++++ b/docs/TROUBLESHOOTING.md
+@@ -0,0 +1,17 @@
++# Troubleshooting
++
++> Practical guide. Keep historical lessons even after the bug is fixed.
++
++## Known Problems
++
++### Problem: <title>
++
++- Possible symptoms:
++- Likely causes:
++- Diagnostic steps:
++- Resolution:
++- Relevant logs:
++- Relevant components:
++- Escalation considerations:
++
++> uncertain — verify with developer
+diff --git a/docs/adr/000-template.md b/docs/adr/000-template.md
+new file mode 100644
+index 0000000..aca4061
+--- /dev/null
++++ b/docs/adr/000-template.md
+@@ -0,0 +1,31 @@
++# ADR-000: Decision Title
++
++## Status
++
++Proposed | Accepted | Superseded by ADR-XXX | Deprecated
++
++## Context
++
++What problem or constraint required a decision?
++
++## Options Considered
++
++- Option A
++- Option B
++- Option C
++
++## Decision
++
++What was selected?
++
++## Rationale
++
++Why was this option selected?
++
++## Consequences
++
++What benefits, limitations, dependencies or future obligations result from this decision?
++
++## Related Components
++
++Relevant files, services or documentation.
+diff --git a/documentation/manual.yaml b/documentation/manual.yaml
+new file mode 100644
+index 0000000..99f0edc
+--- /dev/null
++++ b/documentation/manual.yaml
+@@ -0,0 +1,22 @@
++# Pandoc defaults for the PDF manual. `docforge build` adds inputs, metadata and the header include.
++from: gfm+tex_math_dollars+yaml_metadata_block
++pdf-engine: tectonic
++table-of-contents: true
++toc-depth: 2
++number-sections: true
++top-level-division: chapter
++file-scope: true
++variables:
++  documentclass: report
++  papersize: a4
++  geometry:
++    - margin=25mm
++  fontsize: 11pt
++  mainfont: DejaVu Serif
++  sansfont: DejaVu Sans
++  monofont: DejaVu Sans Mono
++  colorlinks: true
++  linkcolor: black
++  urlcolor: blue
++  lof: false # set true once the docs contain captioned figures (e.g. Mermaid diagrams)
++  lot: false
+diff --git a/documentation/templates/manual-header.tex b/documentation/templates/manual-header.tex
+new file mode 100644
+index 0000000..8b7cafd
+--- /dev/null
++++ b/documentation/templates/manual-header.tex
+@@ -0,0 +1,19 @@
++% Header/footer for the docforge manual. @@TOKENS@@ are filled in by `docforge build`.
++\usepackage{fancyhdr}
++\usepackage{lastpage}
++\pagestyle{fancy}
++\fancyhf{}
++\fancyhead[L]{\small @@TITLE@@}
++\fancyhead[R]{\small\nouppercase{\leftmark}}
++\fancyfoot[L]{\small Version @@VERSION@@ \textbullet{} @@DATE@@ \textbullet{} @@SHA@@}
++\fancyfoot[R]{\small Page \thepage{} of \pageref*{LastPage}}
++\renewcommand{\headrulewidth}{0.4pt}
++\renewcommand{\footrulewidth}{0.4pt}
++\fancypagestyle{plain}{%
++  \fancyhf{}%
++  \fancyfoot[L]{\small Version @@VERSION@@ \textbullet{} @@DATE@@ \textbullet{} @@SHA@@}%
++  \fancyfoot[R]{\small Page \thepage{} of \pageref*{LastPage}}%
++  \renewcommand{\headrulewidth}{0pt}%
++}
++\usepackage{float}
++\floatplacement{figure}{H}
+-- 
+2.43.0
+
