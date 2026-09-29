@@ -1,0 +1,141 @@
+{
+  "project": "docforge",
+  "spec": "specification.json",
+  "dod": "definition_of_done.md",
+  "rule": "One task = one atomic commit + update this file. Tasks marked 💲 need user approval before running.",
+  "tasks": [
+    {
+      "id": "T0",
+      "title": "git init, uv project skeleton, init.sh prerequisite checker",
+      "dod": [
+        "0.1",
+        "0.2",
+        "0.3"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "T1",
+      "title": "docforge.toml schema + loader",
+      "dod": [
+        "2.6"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T2",
+      "title": "Templates: 12 docs, ADR, CHANGELOG, CI workflow, LaTeX, manual.yaml",
+      "dod": [
+        "1.1"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T3",
+      "title": "init command",
+      "dod": [
+        "1.1",
+        "1.2",
+        "1.3",
+        "1.4"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T4",
+      "title": "check: structure, sections, links, ADR, uncertain",
+      "dod": [
+        "2.1",
+        "2.2",
+        "2.3",
+        "2.7"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T5",
+      "title": "check: drift + Docs-Impact override",
+      "dod": [
+        "2.4",
+        "2.5"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T6",
+      "title": "build: pandoc + mermaid Lua filter + tectonic + versioning",
+      "dod": [
+        "3.1",
+        "3.2",
+        "3.3",
+        "3.4"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T7",
+      "title": "agent: tool layer (PEP), budget guard, usage ledger (mocked tests)",
+      "dod": [
+        "4.1",
+        "4.2",
+        "4.3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T8",
+      "title": "apply command",
+      "dod": [
+        "4.4"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T9",
+      "title": "OpenShell images + policies + redteam.sh",
+      "dod": [
+        "3.5",
+        "5.1",
+        "5.2",
+        "5.3",
+        "5.4",
+        "5.5"
+      ],
+      "status": "pending",
+      "needs": "API key registered as OpenShell provider"
+    },
+    {
+      "id": "T10",
+      "title": "💲 Live agent impact run on pilot",
+      "dod": [
+        "4.5",
+        "4.6"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T11",
+      "title": "💲 Pilot bootstrap + review + PR (opened by user)",
+      "dod": [
+        "6.1",
+        "6.2",
+        "6.3",
+        "6.4",
+        "6.5",
+        "6.6",
+        "6.7",
+        "6.8"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T12",
+      "title": "Dogfood docs + ADR-001, final spend check",
+      "dod": [
+        "7.1",
+        "7.2"
+      ],
+      "status": "pending"
+    }
+  ]
+}

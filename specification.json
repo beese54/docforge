@@ -1,0 +1,342 @@
+{
+  "name": "docforge",
+  "version": "0.1.0-mvp",
+  "status": "DRAFT, awaiting approval (Pattern M Phase 4 gate)",
+  "purpose": "Docs-as-code tool for a solo developer who builds with AI. It scaffolds a documentation structure, detects drift between code and docs, uses a sandboxed AI agent to propose documentation updates and ADRs for human review, and publishes a versioned PDF manual from the Markdown source of truth (Markdown -> Pandoc -> LaTeX -> PDF).",
+  "decisions": {
+    "reader_form": "CLI + local preview. The reader itself is deferred to v2 [ASSUMED default #1, #4]",
+    "latex_direction": "One-way MD -> LaTeX -> PDF. Importing .tex is out of scope [ASSUMED #2]",
+    "converter": "Pandoc + custom LaTeX template (Eisvogel-derived) [ASSUMED #3]",
+    "mvp_scope": [
+      "init",
+      "check",
+      "build",
+      "agent (impact, adr, bootstrap)",
+      "usage"
+    ],
+    "audience": "Owner first, structured so it can be open-sourced [ASSUMED #5]",
+    "pilot_repo": "https://github.com/beese54/markdown-visualiser (public, TypeScript/React/Fastify)",
+    "code_to_model": "Allowed. Code goes to the Anthropic API only. The pilot is already public [ASSUMED #7]",
+    "agent_trigger": "On demand, in an OpenShell sandbox. CI runs only the non-AI `check` and `build`, and CI's drift findings tell the developer when to run the agent [ASSUMED #8, reconciled with #14. See open_items]",
+    "agent_authority": "Propose only. The agent outputs a patch and a report. The host applies it to a branch, and the human opens or merges the PR. The agent never pushes and never holds a GitHub token [ASSUMED #9]",
+    "drift_strictness": "Warn locally. `--strict` (used in CI) errors only for ADR-worthy categories: dependencies, data, security, deployment [ASSUMED #10]",
+    "model_failure": "The agent exits with code 3 and prints a message. check and build are unaffected [ASSUMED #11]",
+    "pdf_style": "Neutral A4. The footer shows version, date and short SHA. No brand assets [ASSUMED #12]",
+    "mermaid_in_pdf": "mermaid-cli (headless Chromium) renders each diagram to a vector PDF figure [ASSUMED #13]",
+    "openshell_role": "Sandboxes the agent (egress only to api.anthropic.com, with a credential placeholder swapped at egress) and the PDF build (no egress). It does not host the reader",
+    "git_host": "GitHub + GitHub Actions [ASSUMED #15]",
+    "model": "claude-sonnet-5-5 ($2 in / $10 out per 1M tokens), adaptive thinking, effort 'medium' [USER: Sonnet tier; effort ASSUMED]",
+    "tool_language": "Python 3.12, packaged with uv [ASSUMED #17]",
+    "dev_environment": "WSL2 Ubuntu-24.04 on this machine [ASSUMED #18]",
+    "dogfood": "docforge documents itself. ADR-001 is Pandoc vs Quarto [ASSUMED #19]"
+  },
+  "budget": {
+    "credits_available_usd": 39.9,
+    "mvp_total_cap_usd": 10.0,
+    "per_run_cap_usd": {
+      "impact": 0.5,
+      "adr": 0.3,
+      "bootstrap": 3.0
+    },
+    "monthly_cap_usd": 10.0,
+    "estimates": {
+      "impact_run": "about 30-60K input + 5-10K output tokens, so about $0.10-0.25",
+      "bootstrap_pilot": "about 150-300K input (with caching) + 60-100K output, so about $1.50-3.00",
+      "note": "These are estimates. The usage ledger records the real cost of every run, and the caps are enforced in code"
+    },
+    "enforcement": [
+      "Before each API call: estimate from count_tokens and refuse if run_spend + estimate > per_run_cap",
+      "task_budget (beta task-budgets-2026-03-13) so the model paces itself inside a run",
+      "Prompt caching on the system prompt + templates",
+      "Every response.usage is appended to ~/.docforge/usage.jsonl. A run is refused if monthly spend >= monthly_cap",
+      "Also recommended: a dedicated API key in its own Console workspace, with a spend limit"
+    ]
+  },
+  "architecture": {
+    "components": {
+      "cli": "docforge (Typer). Entry point for every command",
+      "config": "docforge.toml in the target repo: doc set, impact map, manual chapter order, budget",
+      "templates": "Markdown templates for the 13 docs + ADR (MADR-style, per your spec), CHANGELOG (Keep a Changelog), CI workflow, LaTeX template, pandoc defaults",
+      "checker": "Structure, sections, links, ADR format, uncertain markers, drift. Deterministic, never calls the model",
+      "builder": "pandoc + Lua filter (mermaid -> mmdc) + LaTeX engine (tectonic) -> PDF",
+      "agent": "Anthropic Python SDK tool-runner loop. It only reaches the repo through a path-allowlisted tool layer (the policy enforcement point)",
+      "applier": "Runs on the host. Applies the agent's patch to a new branch after the human reviews it",
+      "sandbox": "OpenShell policies + images for the agent and the build"
+    },
+    "flow": [
+      "developer changes code -> `docforge check --base main` (local or CI) -> drift findings",
+      "developer runs `docforge agent impact --base main` -> OpenShell sandbox -> out/docforge.patch + out/report.md",
+      "developer reviews the report -> `docforge apply out/docforge.patch` -> branch docforge/impact-<sha> -> the developer opens the PR",
+      "`docforge build` -> documentation/build/<name>-manual-<version>.pdf"
+    ]
+  },
+  "cli_contracts": {
+    "exit_codes": {
+      "0": "ok",
+      "1": "findings at error severity",
+      "2": "usage/config/missing tool",
+      "3": "model unavailable or budget exceeded"
+    },
+    "init": {
+      "args": [
+        "--path DIR (default .)"
+      ],
+      "behavior": "Creates only files that are missing and never overwrites. Idempotent. New docs are skeletons whose sections are filled with `> uncertain — verify with developer`. Writes docforge.toml with an impact map guessed from the repo's manifests. Adds documentation/build/ to .gitignore",
+      "creates": [
+        "README.md (only if absent)",
+        "CHANGELOG.md",
+        "docs/{ARCHITECTURE,DESIGN,HOW_IT_WORKS,DEPLOYMENT,MAINTENANCE,TROUBLESHOOTING,SECURITY,TESTING,DATA_MODEL,API,DEPENDENCIES,OPERATIONS}.md",
+        "docs/adr/000-template.md",
+        "documentation/templates/manual.latex",
+        "documentation/manual.yaml",
+        ".github/workflows/docforge.yml",
+        "docforge.toml"
+      ]
+    },
+    "check": {
+      "args": [
+        "--base REF (default: merge-base with origin/main)",
+        "--strict",
+        "--format text|json"
+      ],
+      "rules": {
+        "structure": "every doc in docforge.toml exists (error)",
+        "sections": "the required H2 headings per doc type are present (warn; error under --strict)",
+        "links": "relative links and #anchors resolve (error). External links are not checked in MVP",
+        "adr": "file name NNN-kebab.md, contiguous numbers, a Status line from {Proposed, Accepted, Superseded, Deprecated}, and 'Superseded' names its successor (error)",
+        "uncertain": "counts `uncertain — verify with developer` markers per doc (info; the budget is set in config)",
+        "drift": "changed files in base...HEAD are mapped through impact_map to docs. A category is triggered but none of its docs changed -> finding. ADR-worthy categories -> error under --strict, otherwise warn",
+        "drift_override": "a commit trailer `Docs-Impact: none — <reason>` suppresses drift for that commit's files. The reason must be non-empty"
+      },
+      "json_finding_schema": {
+        "rule": "string",
+        "severity": "info|warn|error",
+        "file": "string",
+        "line": "number|null",
+        "message": "string",
+        "category": "string|null"
+      }
+    },
+    "build": {
+      "args": [
+        "--out DIR (default documentation/build)",
+        "--format pdf|tex"
+      ],
+      "behavior": "Chapters follow the order in documentation/manual.yaml (the 14 sections from your spec). Output: TOC, numbered sections/figures/tables, cross-references, headers/footers. Version = `git describe --tags --always --dirty`, date = commit date. A Mermaid render failure falls back to the code block with a warning (an error under --strict). No network needed once the image is built"
+    },
+    "agent": {
+      "subcommands": {
+        "bootstrap": "First pass over an existing repo: reads code, config, CI and manifests, then drafts every doc + ADRs for the decisions it can see",
+        "impact": "Takes base...HEAD, runs the 12-question impact check from your spec, and edits only the docs that are materially affected. Proposes a CHANGELOG entry",
+        "adr": "`agent adr \"<title>\"` drafts the next-numbered ADR from the diff/context and the developer's note"
+      },
+      "tools_exposed_to_model": {
+        "list_files": "under the repo root, respects .gitignore",
+        "read_file": "repo root only, max 200KB per call",
+        "grep": "repo root only",
+        "git_diff": "base...HEAD only",
+        "write_doc": "ONLY paths matching README.md, CHANGELOG.md, docs/**. Anything else is rejected and logged as a policy event"
+      },
+      "honesty_rules": [
+        "Never state behaviour it cannot point to in a file. Mark it `uncertain — verify with developer` instead",
+        "Every section it writes ends with `<!-- sources: path[:line], ... -->`",
+        "If the code disagrees with an existing doc, raise it as a DISCREPANCY in report.md. Do not silently 'fix' it",
+        "No noise edits: a doc touched without a materially changed claim is a failure"
+      ],
+      "outputs": [
+        "out/docforge.patch (unified diff against HEAD)",
+        "out/report.md (impact checklist answers, discrepancies, uncertain items, cost)"
+      ],
+      "api": {
+        "model": "claude-sonnet-5-5",
+        "thinking": "adaptive",
+        "effort": "medium",
+        "streaming": true,
+        "fallbacks": "\"default\" (server-side refusal fallback) [ASSUMED — can be disabled]"
+      }
+    },
+    "apply": {
+      "behavior": "Runs on the host. Checks that the patch touches only allowed doc paths, creates branch docforge/<task>-<shortsha>, applies and commits the patch, and prints the `gh pr create` command. It does not push automatically"
+    },
+    "usage": {
+      "behavior": "Prints spend per run, per month and in total from usage.jsonl"
+    }
+  },
+  "data_schemas": {
+    "docforge_toml": {
+      "project": {
+        "name": "string",
+        "manual_title": "string"
+      },
+      "docs": {
+        "required": "string[] (default: the 12 docs/*.md + README + CHANGELOG)"
+      },
+      "impact_map": "array of { category: string, globs: string[], docs: string[], adr_worthy: bool }",
+      "manual": {
+        "chapters": "string[] of doc paths, in order"
+      },
+      "budget": {
+        "per_run_usd": "object",
+        "monthly_usd": "number"
+      },
+      "uncertain": {
+        "max_markers": "number|null"
+      }
+    },
+    "usage_record": {
+      "ts": "ISO-8601",
+      "run_id": "string",
+      "command": "string",
+      "model": "string",
+      "input_tokens": "int",
+      "output_tokens": "int",
+      "cache_read_tokens": "int",
+      "cost_usd": "number"
+    }
+  },
+  "pilot_impact_map_draft": [
+    {
+      "category": "dependencies",
+      "globs": [
+        "package.json",
+        "package-lock.json"
+      ],
+      "docs": [
+        "docs/DEPENDENCIES.md"
+      ],
+      "adr_worthy": true
+    },
+    {
+      "category": "deployment",
+      "globs": [
+        "Dockerfile",
+        "docker-compose.yml",
+        "init.sh"
+      ],
+      "docs": [
+        "docs/DEPLOYMENT.md",
+        "docs/OPERATIONS.md"
+      ],
+      "adr_worthy": true
+    },
+    {
+      "category": "security",
+      "globs": [
+        "src/pipeline/sanitize.ts",
+        "server/pdf.ts",
+        "server/index.ts"
+      ],
+      "docs": [
+        "docs/SECURITY.md"
+      ],
+      "adr_worthy": true
+    },
+    {
+      "category": "api",
+      "globs": [
+        "server/**"
+      ],
+      "docs": [
+        "docs/API.md"
+      ],
+      "adr_worthy": false
+    },
+    {
+      "category": "architecture",
+      "globs": [
+        "src/pipeline/render.ts",
+        "src/pipeline/plugins/**",
+        "src/ingest/**"
+      ],
+      "docs": [
+        "docs/ARCHITECTURE.md",
+        "docs/HOW_IT_WORKS.md"
+      ],
+      "adr_worthy": false
+    },
+    {
+      "category": "data",
+      "globs": [
+        "src/types/domain.ts",
+        "src/state/**"
+      ],
+      "docs": [
+        "docs/DATA_MODEL.md"
+      ],
+      "adr_worthy": true
+    },
+    {
+      "category": "testing",
+      "globs": [
+        "tests/**",
+        "vitest.config.ts"
+      ],
+      "docs": [
+        "docs/TESTING.md"
+      ],
+      "adr_worthy": false
+    }
+  ],
+  "pilot_observations": {
+    "has": [
+      "a detailed README (architecture, trust boundary, security table, verification)",
+      "specification.json",
+      "definition_of_done.md",
+      "progress_tracking.json",
+      "121 unit tests + e2e + security probes"
+    ],
+    "missing": [
+      "docs/ tree",
+      "docs/adr/",
+      "CHANGELOG.md",
+      "CI workflow (.github/ absent)"
+    ],
+    "adr_candidates_visible_in_code": [
+      "One client-side markdown pipeline; the server never parses markdown",
+      "Sanitizer placed directly after rehype-raw (the trust boundary)",
+      "PDF via a stateless Playwright print service rendering posted HTML",
+      "Self-hosted fonts / zero third-party requests",
+      "Container hardening: loopback bind, read-only, cap_drop ALL",
+      "Repairs are applied to the rendering only and always reported"
+    ],
+    "tension": "The README already holds deep architecture and security content. The bootstrap must MOVE it into docs/ and link to it (your spec says no two copies), and must propose trimming the README as a separate, clearly flagged change"
+  },
+  "openshell_runtime": {
+    "agent_sandbox": {
+      "image": "python:3.12-slim + git + uv + docforge",
+      "filesystem": "read: /sandbox/repo (a copy of the working tree); write: /sandbox/out only",
+      "network": "Only api.anthropic.com:443, via the attached 'anthropic' provider. Inside the sandbox ANTHROPIC_API_KEY is a placeholder that the OpenShell proxy swaps for the real key at egress (per the CLI's `sandbox provider attach` docs). All other egress is denied",
+      "process": "python, git only"
+    },
+    "build_sandbox": {
+      "image": "pandoc + tectonic (with a pre-warmed package cache) + mermaid-cli + chromium",
+      "network": "none",
+      "note": "Tectonic fetches LaTeX packages on first use. The cache must be warmed while the image is built, or the offline build fails"
+    },
+    "uncertain": "The provider syntax was verified against deploy/man/openshell.1.md in NVIDIA/OpenShell main (2026-09-29). Policy field names are still to be verified with `openshell policy --help` on the installed version",
+    "provider_setup": [
+      "openshell provider create --name anthropic --type anthropic --credential ANTHROPIC_API_KEY   # bare KEY form reads the env var, so the key stays out of shell history",
+      "openshell sandbox provider attach <sandbox> anthropic"
+    ]
+  },
+  "error_behavior": {
+    "pandoc_or_tectonic_missing": "exit 2 with an install hint",
+    "not_a_git_repo": "check/agent exit 2. init still works",
+    "api_4xx_5xx_or_timeout": "SDK retries (2), then exit 3. A partial patch is discarded, never half-written",
+    "budget_exceeded": "exit 3 before the call is made. The ledger records the refusal",
+    "patch_touches_non_doc_path": "apply refuses with exit 1 and lists the offending paths"
+  },
+  "out_of_scope_mvp": [
+    "Reader UI (`serve`). v2 PROPOSAL: reuse markdown-visualiser as the reader instead of building a new one",
+    "Importing LaTeX into Markdown",
+    "Continuous/scheduled agent polling",
+    "Running the agent inside GitHub Actions",
+    "External link checking",
+    "Hosts other than GitHub; multi-repo"
+  ],
+  "open_items": [
+    "Confirm: the agent runs on demand in OpenShell, and CI stays AI-free (resolves the tension between defaults #8 and #14)",
+    "Confirm: the v2 reader reuses markdown-visualiser",
+    "Confirm: the bootstrap PR on markdown-visualiser may propose trimming its README in favour of docs/"
+  ]
+}
