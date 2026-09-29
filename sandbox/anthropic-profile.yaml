@@ -1,0 +1,36 @@
+# OpenShell provider profile for docforge's agent. Adapted from NVIDIA/OpenShell providers/anthropic.yaml
+# (Apache-2.0). OpenShell 0.1.x ships no profiles; import this before `openshell provider create`:
+#   openshell provider profile lint   -f sandbox/anthropic-profile.yaml
+#   openshell provider profile import -f sandbox/anthropic-profile.yaml --global
+#
+# Change from the upstream example: `binaries` also names the Python interpreters, because docforge calls
+# the API through the anthropic SDK, not curl. Only these processes may reach api.anthropic.com, and the
+# real key is injected only on requests to that host.
+
+id: anthropic
+display_name: Anthropic
+description: Anthropic inference API (docforge agent)
+category: inference
+inference_capable: true
+credentials:
+  - name: api_key
+    description: Anthropic API key
+    env_vars: [ANTHROPIC_API_KEY]
+    required: true
+    auth_style: header
+    header_name: x-api-key
+discovery:
+  credentials: [api_key]
+endpoints:
+  - host: api.anthropic.com
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+binaries:
+  - /usr/bin/curl
+  - /usr/local/bin/curl
+  - /usr/bin/python3
+  - /usr/bin/python3.12
+  - /usr/local/bin/python3
+  - /usr/local/bin/python3.12
