@@ -100,3 +100,7 @@ Windows 11 host
   VM driver: still fails in-guest ("read /proc/self/status: Permission denied"). Podman: OpenShell needs 5.x, Ubuntu 24.04 has 4.9.
   Proposed fix (needs user approval, blocked by permission policy): a native Docker engine inside Ubuntu as a separate systemd
   service (docker-openshell, own socket/data-root/bridge), with OpenShell's docker socket_path pointed at it. Gateway left on docker.
+- 2026-09-30: user installed native Docker (sandbox/install-native-docker.sh); OpenShell now uses /run/docker-openshell.sock
+  via ~/.config/openshell/gateway.toml. Red-team agent controls all PASS. T10 done ($0.04). T11 bootstrap done on 4th
+  attempt ($1.40; T11 total $2.20; total spend $2.25). Evidence: evidence/pilot-runs.md. Pilot branch (local only):
+  /tmp/pilot-live docforge/bootstrap-24c6b4f. Remaining: 6.4 full audit, 6.6 checklist, 6.8 user PR + publish docforge, T12.
