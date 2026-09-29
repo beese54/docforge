@@ -21,7 +21,7 @@ MODEL = "claude-sonnet-5-5"
 PRICES: dict[str, dict[str, float]] = {
     "claude-sonnet-5-5": {"input": 2.00e-6, "output": 10.00e-6, "cache_read": 0.20e-6, "cache_write": 2.50e-6},
 }
-MAX_OUTPUT_TOKENS = 16_000  # non-streaming ceiling
+MAX_OUTPUT_TOKENS = 32_000  # per response (streamed); the guard still shrinks it to fit the remaining budget
 MIN_USEFUL_OUTPUT = 2_048
 
 

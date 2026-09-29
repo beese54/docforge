@@ -39,7 +39,7 @@ def _system() -> list[dict[str, Any]]:
 
 
 def run(
-    client: Any,  # anthropic.Anthropic, or a test fake exposing messages.create / messages.count_tokens
+    client: Any,  # anthropic.Anthropic, or a test fake exposing messages.stream / messages.count_tokens
     tools: ToolLayer,
     guard: BudgetGuard,
     task: str,
@@ -52,16 +52,23 @@ def run(
             turns += 1
             if turns > MAX_TURNS:
                 raise AgentError(f"stopped after {MAX_TURNS} turns without calling finish")
-            request: dict[str, Any] = {"model": MODEL, "system": _system(), "tools": TOOL_DEFS, "messages": messages}
+            request: dict[str, Any] = {
+                "model": MODEL, "system": _system(), "tools": TOOL_DEFS, "messages": messages,
+                # One tool call per turn: a turn then writes at most one document, which keeps each response far
+                # below the output ceiling (a bootstrap once tried to emit several whole docs in one response).
+                "tool_choice": {"type": "auto", "disable_parallel_tool_use": True},
+            }
             counted = client.messages.count_tokens(**request)
             max_tokens = guard.max_tokens_for(counted.input_tokens)
-            response = client.messages.create(
+            # Streaming: the SDK requires it for large max_tokens to avoid HTTP timeouts.
+            with client.messages.stream(
                 **request,
                 max_tokens=max_tokens,
                 thinking={"type": "adaptive"},
                 output_config={"effort": EFFORT},
                 cache_control={"type": "ephemeral"},
-            )
+            ) as stream:
+                response = stream.get_final_message()
             guard.record(response.usage)
 
             if response.stop_reason == "refusal":

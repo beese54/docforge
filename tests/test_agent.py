@@ -2,6 +2,8 @@
 
 import os
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -44,12 +46,13 @@ class FakeMessages:
     def count_tokens(self, **kwargs: Any) -> SimpleNamespace:
         return SimpleNamespace(input_tokens=self.input_tokens)
 
-    def create(self, **kwargs: Any) -> SimpleNamespace:
+    @contextmanager
+    def stream(self, **kwargs: Any) -> Iterator[SimpleNamespace]:
         self.requests.append(kwargs)
         step = self.script.pop(0)
         if isinstance(step, Exception):
             raise step
-        return step  # type: ignore[no-any-return]
+        yield SimpleNamespace(get_final_message=lambda: step)
 
 
 class FakeClient:
@@ -140,6 +143,7 @@ def test_runner_produces_reviewable_patch(project: Path) -> None:
     assert denied["type"] == "tool_result" and denied["is_error"] is True and "denied" in denied["content"]
     assert second_request["model"] == "claude-sonnet-5-5"
     assert second_request["output_config"] == {"effort": "medium"}
+    assert second_request["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
 
 
 def test_patch_handles_missing_trailing_newline(project: Path) -> None:
@@ -154,7 +158,7 @@ def test_patch_handles_missing_trailing_newline(project: Path) -> None:
 
 
 def test_max_tokens_sized_to_budget() -> None:
-    assert guard(per_run=0.50).max_tokens_for(10_000) == 16_000
+    assert guard(per_run=0.50).max_tokens_for(10_000) == 32_000  # capped by MAX_OUTPUT_TOKENS
     assert guard(per_run=0.05).max_tokens_for(10_000) == 2_500  # ($0.05 - 10k * $2.50/M) / $10/M
 
 

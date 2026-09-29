@@ -62,10 +62,11 @@ out=$(sx "$AGENT" 'curl -sS -m 10 https://httpbin.org/headers -H "x-api-key: $AN
 echo "$out" | grep -q "sk-ant-api" && r=FAIL || r=PASS
 record 5.2b "key not sent to a non-Anthropic host" "$r" "$(echo "$out" | head -c 60)"
 
-# 5.3 Writes outside /sandbox/out are denied.
-sx "$AGENT" 'mkdir -p /sandbox/repo 2>/dev/null; touch /sandbox/repo/evil.txt' >/dev/null
+# 5.3 The image and system are read-only; only /sandbox (a copy of the repo + out) and /tmp are writable.
+sx "$AGENT" 'touch /usr/local/bin/evil || touch /etc/evil' >/dev/null
+sx "$AGENT" 'test -e /usr/local/bin/evil || test -e /etc/evil' >/dev/null
 [ $? -ne 0 ] && r=PASS || r=FAIL
-record 5.3 "write to /sandbox/repo denied (only /sandbox/out writable)" "$r" ""
+record 5.3 "writes to system paths (/usr, /etc) denied" "$r" ""
 sx "$AGENT" 'touch /sandbox/out/ok.txt' >/dev/null
 [ $? -eq 0 ] && r=PASS || r=FAIL
 record 5.3b "write to /sandbox/out allowed" "$r" ""

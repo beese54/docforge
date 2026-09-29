@@ -7,7 +7,6 @@
 # for the real key only on requests to api.anthropic.com. The usage ledger is carried in and out so the
 # monthly budget cap spans sandbox runs.
 #
-# UNTESTED on this machine: OpenShell 0.1.2 sandboxes cannot start on the WSL 5.15 kernel (Landlock ABI v3).
 set -euo pipefail
 
 REPO=$(cd "$1" && pwd); shift
@@ -25,18 +24,27 @@ mkdir -p "$STAGE/out/home"
 
 openshell sandbox create --name "$NAME" --from "docforge-agent:$VERSION" \
   --policy "$HERE/agent-policy.yaml" --provider anthropic --detach -- sleep infinity
-openshell sandbox upload "$NAME" "$REPO" /sandbox/repo
-openshell sandbox upload "$NAME" "$STAGE/out" /sandbox/out
+# Directory uploads are git-filtered and drop .git, which the agent needs for its diff. Ship the working tree
+# (untracked files included) plus .git as one tar and unpack it inside. An uploaded directory lands under the
+# destination by name: in -> /sandbox/in, out -> /sandbox/out.
+REPO_IN="/sandbox/$(basename "$REPO")"
+mkdir -p "$STAGE/in"
+tar -C "$(dirname "$REPO")" --exclude=node_modules --exclude=documentation/build \
+  -cf "$STAGE/in/repo.tar" "$(basename "$REPO")"
+openshell sandbox upload "$NAME" "$STAGE/in" /sandbox </dev/null
+openshell sandbox upload "$NAME" "$STAGE/out" /sandbox </dev/null
+openshell sandbox exec --name "$NAME" -- sh -c 'tar -xf /sandbox/in/repo.tar -C /sandbox && rm -rf /sandbox/in' \
+  </dev/null
 
 set +e
-openshell sandbox exec --name "$NAME" --workdir /sandbox/repo \
+openshell sandbox exec --name "$NAME" --workdir "$REPO_IN" \
   --env DOCFORGE_HOME=/sandbox/out/home --env GIT_OPTIONAL_LOCKS=0 \
   -- docforge agent "$TASK" "$@" --out /sandbox/out </dev/null  # exec waits for stdin EOF
 status=$?
 set -e
 
 rm -rf "$STAGE/back" && mkdir -p "$STAGE/back"
-openshell sandbox download "$NAME" /sandbox/out "$STAGE/back"
+openshell sandbox download "$NAME" /sandbox/out "$STAGE/back" </dev/null
 src="$STAGE/back"; [ -d "$STAGE/back/out" ] && src="$STAGE/back/out"
 if [ -f "$src/home/usage.jsonl" ]; then mkdir -p "$(dirname "$LEDGER")"; cp "$src/home/usage.jsonl" "$LEDGER"; fi
 mkdir -p "$OUT"
