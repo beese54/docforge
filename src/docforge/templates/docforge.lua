@@ -47,7 +47,14 @@ local function mermaid_figure(block)
   local fh = io.open(src, "w")
   fh:write(code)
   fh:close()
-  local ok, err = pcall(pandoc.pipe, "mmdc", { "-i", src, "-o", out, "--pdfFit", "-q" }, "")
+  local args = { "-i", src, "-o", out, "--pdfFit", "-q" }
+  -- Containers usually cannot give Chromium its own sandbox; the image points this at a puppeteer config.
+  local puppeteer = os.getenv("DOCFORGE_PUPPETEER_CONFIG")
+  if puppeteer and puppeteer ~= "" then
+    table.insert(args, "-p")
+    table.insert(args, puppeteer)
+  end
+  local ok, err = pcall(pandoc.pipe, "mmdc", args, "")
   if not ok then
     io.stderr:write("DOCFORGE-MERMAID-FAILED: " .. caption .. ": " .. tostring(err) .. "\n")
     return nil

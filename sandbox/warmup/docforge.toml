@@ -1,0 +1,9 @@
+# Fixture rendered once at image build time to warm the LaTeX, font and Chromium caches.
+[project]
+name = "warmup"
+
+[docs]
+required = ["README.md", "docs/ARCHITECTURE.md", "docs/FONTS.md"]
+
+[manual]
+chapters = ["README.md", "docs/ARCHITECTURE.md", "docs/FONTS.md"]

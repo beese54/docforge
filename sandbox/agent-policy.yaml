@@ -1,0 +1,21 @@
+# OpenShell policy for the docforge agent sandbox (sandbox/run-agent.sh).
+# Static (fixed at creation): filesystem + landlock. Network comes ONLY from the attached `anthropic`
+# provider profile (sandbox/anthropic-profile.yaml): api.anthropic.com:443 for curl/python3, with the real
+# key injected at egress. No other network rule exists, so all other egress is denied.
+#
+# UNTESTED on this machine: OpenShell 0.1.2 sandboxes cannot start on the WSL 5.15 kernel (no Landlock ABI v3).
+# Verify with sandbox/redteam.sh once sandboxes run.
+version: 1
+
+filesystem_policy:
+  # The repository is uploaded to /sandbox/repo and is read-only for the agent process; only /sandbox/out
+  # (patch, report, ledger copy) and /tmp are writable. If uploads into a read-only path turn out to be
+  # refused, fall back to include_workdir: true and rely on docforge's PEP + `docforge apply` re-check.
+  include_workdir: false
+  read_only: [/bin, /usr, /lib, /proc, /dev/urandom, /etc, /var/log, /home/sandbox/.gitconfig, /sandbox/repo]
+  read_write: [/sandbox/out, /tmp, /dev/null]
+
+landlock:
+  compatibility: best_effort
+
+network_policies: {}

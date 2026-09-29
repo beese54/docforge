@@ -138,8 +138,11 @@ def build(cfg: Config, out_dir: Path | None = None, fmt: str = "pdf", strict: bo
     failed_diagrams = [line for line in proc.stderr.splitlines() if line.startswith(MERMAID_FAILED)]
     warnings.extend(failed_diagrams)
     if proc.returncode != 0:
-        tail = "\n".join(proc.stderr.strip().splitlines()[-15:])
+        # tectonic prints one "note: downloading ..." per file; the actual error is in the other lines.
+        meaningful = [line for line in proc.stderr.strip().splitlines() if not line.startswith("note:")]
+        tail = "\n".join(meaningful[-15:])
         raise BuildError(f"pandoc failed (exit {proc.returncode}):\n{tail}")
     if strict and failed_diagrams:
-        raise BuildError(f"{len(failed_diagrams)} Mermaid diagram(s) failed to render (--strict)")
+        details = "\n".join(line[:500] for line in failed_diagrams)
+        raise BuildError(f"{len(failed_diagrams)} Mermaid diagram(s) failed to render (--strict):\n{details}")
     return BuildResult(output=output, version=version, chapters=chapters, warnings=warnings)

@@ -1,0 +1,16 @@
+# OpenShell policy for the docforge PDF build sandbox. No network rules and no providers: the build image
+# has every LaTeX package, font and the headless Chromium baked in (see sandbox/build.Dockerfile), so the
+# build needs no egress at all. Verified outside OpenShell with `docker run --network none --read-only`.
+#
+# UNTESTED under OpenShell on this machine (WSL 5.15 kernel lacks Landlock ABI v3). See sandbox/redteam.sh.
+version: 1
+
+filesystem_policy:
+  include_workdir: true
+  read_only: [/bin, /usr, /lib, /proc, /dev/urandom, /etc, /var/log, /opt]
+  read_write: [/sandbox, /tmp, /dev/null]
+
+landlock:
+  compatibility: best_effort
+
+network_policies: {}

@@ -87,3 +87,10 @@ Windows 11 host
 - 2026-09-29 (later): T0–T8 built and committed (133 tests passing, no API spend). The WSL toolchain now has pandoc 3.1.3, tectonic 0.17, Node 22 (in ~/.local), mermaid-cli 11 + chrome-headless-shell, uv.
 - Key setup gotcha: OpenShell 0.1.2 has NO provider profiles. Import sandbox/anthropic-profile.yaml before `provider create`.
 - Next: T9 (sandbox image + policy + redteam.sh) once the provider exists; T10/T11 spend credit and need approval first.
+- 2026-09-30 00:30: T9 PARTIAL / BLOCKED. OpenShell sandboxes cannot start on this machine: the WSL kernel is 5.15.167 (WSL 2.4.13),
+  and OpenShell 0.1.2 requires Landlock ABI v3 (kernel >= 6.2). Docker driver: "partially incompatible access-rights Refer|Truncate".
+  VM driver (KVM works) boots but its supervisor fails "read /proc/self/status: Permission denied". Gateway reverted to docker.
+  Done without sandboxes: agent + build images (build image verified: pilot PDF builds with --network none, read-only root,
+  uid 1000, Mermaid included), policies, run-agent.sh, redteam.sh (syntax-checked; policies unvalidated — 0.1.2 has no `policy prove`).
+  Likely fix (needs user): `wsl --update` (newer WSL ships a 6.6 kernel), then `wsl --shutdown`, then sandbox/redteam.sh.
+  T10/T11 NOT run: the key lives only in the OpenShell gateway, so no sandbox = no model access. $0 spent.
