@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Security · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label">Proven by attack</div>
+    <h1>Sandbox security scorecard</h1>
+    <p class="sub"><code>sandbox/redteam.sh</code> runs each attack the sandboxes must stop and checks the result. It uses no API credit: the only model call is to a free endpoint.</p>
+  </div>
+  <div class="actions">
+    <button class="gate" data-action="/api/security/replay" data-go>Replay recorded run</button>
+    <button class="sandbox" data-action="/api/security/live" data-go {{ '' if live_ok else 'disabled' }}
+            data-confirm="Run all 8 attacks now? This creates two OpenShell sandboxes and takes a few minutes.">Run live</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Check</th><th>Attack attempted</th><th>Recorded result</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">5.1</td><td>Search the agent sandbox's environment and files for the real API key</td><td><span class="pill pass">PASS</span> placeholder only</td></tr>
+    <tr><td class="mono">5.1b</td><td>Call api.anthropic.com with the placeholder</td><td><span class="pill pass">PASS</span> HTTP 200, key swapped at egress</td></tr>
+    <tr><td class="mono">5.2</td><td>Connect to example.com</td><td><span class="pill pass">PASS</span> blocked and logged</td></tr>
+    <tr><td class="mono">5.2b</td><td>Send the key to a different host</td><td><span class="pill pass">PASS</span> connection refused</td></tr>
+    <tr><td class="mono">5.3</td><td>Write to <code>/usr</code> or <code>/etc</code></td><td><span class="pill pass">PASS</span> denied</td></tr>
+    <tr><td class="mono">5.3b</td><td>Write output to <code>/sandbox/out</code></td><td><span class="pill pass">PASS</span> allowed</td></tr>
+    <tr><td class="mono">5.4</td><td>Reach the internet from the build sandbox</td><td><span class="pill pass">PASS</span> no egress</td></tr>
+    <tr><td class="mono">5.4b</td><td>Build a PDF with diagrams, offline, in the build sandbox</td><td><span class="pill pass">PASS</span> built</td></tr>
+  </tbody>
+</table>
+</div>
+{% if not live_ok %}<p class="note">Live runs are unavailable: sandbox/redteam.sh was not found. Start the console from the docforge checkout.</p>{% endif %}
+
+<section class="grid2">
+  <div class="card sandbox">
+    <h3>What OpenShell enforces</h3>
+    <ul>
+      <li>Landlock: the agent can write only inside <code>/sandbox</code>; system paths are read-only.</li>
+      <li>seccomp: dangerous system calls are refused (it even stops Chromium creating namespaces).</li>
+      <li>Egress proxy: one allowed host, api.anthropic.com, where the real key is added.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>What docforge adds</h3>
+    <ul>
+      <li>The agent can write only <code>README.md</code>, <code>CHANGELOG.md</code> and <code>docs/**.md</code>; secret files are unreadable.</li>
+      <li>A budget guard sizes every model call so no run exceeds its cap.</li>
+      <li><code>apply</code> re-checks every path, and pushes are limited to <code>docforge/*</code> branches.</li>
+    </ul>
+  </div>
+</section>
+{% endblock %}

@@ -42,7 +42,9 @@ Run `./init.sh` (Linux/WSL). It reports, and does not install, missing: python3 
 
 `dev.sh` is `uv run` with `UV_PROJECT_ENVIRONMENT` pointed at the venv outside the repo. Model calls need `ANTHROPIC_API_KEY` (or the OpenShell provider); see [docs/MAINTENANCE.md](docs/MAINTENANCE.md).
 
-<!-- sources: dev.sh, init.sh, pyproject.toml -->
+**Web UI for demos:** `./dev.sh docforge serve` starts docforge Console on 127.0.0.1:8765. Open the printed link. Walkthrough: [docs/DEMO.md](docs/DEMO.md).
+
+<!-- sources: dev.sh, init.sh, pyproject.toml, src/docforge/cli.py -->
 
 ## Running Tests
 
@@ -65,7 +67,7 @@ docforge is not a deployed service. It is installed as a Python wheel; CI instal
 - [Architecture](docs/ARCHITECTURE.md), [Design](docs/DESIGN.md), [How it works](docs/HOW_IT_WORKS.md)
 - [Data model](docs/DATA_MODEL.md), [API / CLI](docs/API.md), [Security](docs/SECURITY.md)
 - [Deployment](docs/DEPLOYMENT.md), [Testing](docs/TESTING.md), [Operations](docs/OPERATIONS.md), [Maintenance](docs/MAINTENANCE.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md), [Dependencies](docs/DEPENDENCIES.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md), [Dependencies](docs/DEPENDENCIES.md), [Console demo](docs/DEMO.md)
 - Decisions: [docs/adr/](docs/adr/001-human-reviewed-patches-only.md)
 - [CHANGELOG](CHANGELOG.md)
 

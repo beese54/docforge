@@ -61,6 +61,10 @@ def classify(line: str) -> str:
     stripped = line.strip()
     if stripped.startswith("turn"):
         return "turn"
+    if re.search(r"\bPASS\b", line) and "FAIL" not in line:
+        return "pass"
+    if re.search(r"\bFAIL(URES)?\b", line):
+        return "fail"
     if "ERROR" in line or stripped.startswith("FAILED") or line.startswith("error:"):
         return "error"
     if stripped.startswith(("report:", "patch:", "cost:", "sandbox exit", "Created sandbox", "Uploading", "Downloading",
@@ -141,6 +145,35 @@ class RunManager:
         job.add(f"patch: {len(replay.files)} file(s) · recorded cost ${replay.cost_usd:.4f} over {replay.turns} turns")
         job.cost = replay.cost_usd
         job.status, job.exit_code, job.finished = "ok", 0, time.time()
+
+    # -- security scorecard -------------------------------------------------------------------------------------
+
+    def start_redteam_replay(self) -> Job:
+        job = Job(uuid.uuid4().hex[:10], "replay", "redteam", "Security scorecard (recorded 2026-09-30)", None,
+                  REPLAY_ROOT)
+        self.jobs[job.id] = job
+
+        def play() -> None:
+            job.add("Replay of the recorded red-team run. No sandboxes are created and nothing is spent.")
+            for line in (REPLAY_ROOT / "redteam.log").read_text(encoding="utf-8").splitlines():
+                time.sleep(self.replay_delay * (4 if line.startswith("5.") else 1))
+                job.add(line or " ")
+            job.status, job.exit_code, job.finished = "ok", 0, time.time()
+
+        threading.Thread(target=play, daemon=True).start()
+        return job
+
+    def start_redteam_live(self) -> Job:
+        if self.sandbox_dir is None:
+            raise FileNotFoundError("sandbox/redteam.sh not found; run the console from the docforge checkout")
+        with self._lock:
+            if any(j.mode == "live" and j.status == "running" for j in self.jobs.values()):
+                raise BusyError("A live run is already in progress. Wait for it to finish.")
+            job = Job(uuid.uuid4().hex[:10], "live", "redteam", "Security scorecard (live)", None, REPLAY_ROOT)
+            self.jobs[job.id] = job
+        threading.Thread(target=self._execute, args=(job, ["bash", str(self.sandbox_dir / "redteam.sh")]),
+                         daemon=True).start()
+        return job
 
     # -- live ------------------------------------------------------------------------------------------------
 

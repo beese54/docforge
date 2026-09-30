@@ -19,6 +19,7 @@ None configured. The monthly cap (default $10) is the only automatic guard; it r
 - Run an impact check after significant code changes: `sandbox/run-agent.sh <repo> impact --base <ref>`, review `report.md`, then `docforge apply documentation/build/agent/docforge.patch --path <repo>`, push manually.
 - First-time pass on a repository: `sandbox/run-agent.sh <repo> bootstrap` (default cap $3.00).
 - Draft an ADR: `sandbox/run-agent.sh <repo> adr "Title" --note "..."`.
+- All of the above from a browser: `docforge serve`, then Repos → Run agent → Review → Apply → Push → Open PR. Replays of recorded runs cost nothing and are safe for demos; see [DEMO.md](DEMO.md).
 - Rebuild sandbox images after a version bump: `sandbox/build-images.sh`.
 - Re-verify sandbox controls: `sandbox/redteam.sh`.
 - Build the manual: `docforge build` or the CI `manual` job.

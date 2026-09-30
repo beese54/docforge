@@ -4,7 +4,7 @@
 
 ## Overview
 
-The interface is the `docforge` CLI (Typer). There is no HTTP API. `--path` (repository root, default `.`) applies to all commands except `usage`. `docforge --version` prints the version.
+The main interface is the `docforge` CLI (Typer). `--path` (repository root, default `.`) applies to all commands except `usage` and `serve`. `docforge --version` prints the version. The optional console (`docforge serve`) adds a local HTTP interface for the browser only; it is not a public API (see [Console HTTP routes](#console-http-routes)).
 
 <!-- sources: src/docforge/cli.py -->
 
@@ -40,7 +40,30 @@ The interface is the `docforge` CLI (Typer). There is no HTTP API. `--path` (rep
 
 - Purpose: show model spend from the ledger. Side effects: none.
 
-<!-- sources: src/docforge/cli.py, src/docforge/git.py, src/docforge/apply.py -->
+### `docforge serve [--port N]`
+
+- Purpose: start docforge Console on `127.0.0.1:N` (default 8765). There is deliberately no `--host` option.
+- Authentication: prints a launch link `http://127.0.0.1:N/auth?t=<token>`; the token is random per launch.
+- Side effects: long-running; writes `$DOCFORGE_HOME/console.json` (the repository list). Exit 2 if the `[console]` extra is not installed.
+
+<!-- sources: src/docforge/cli.py, src/docforge/git.py, src/docforge/apply.py, src/docforge/console/app.py -->
+
+## Console HTTP routes
+
+For the console's own pages only. Every route requires the `Host` header to be `127.0.0.1:N` or `localhost:N` (403 otherwise). Pages require the `docforge_session` cookie set by `/auth` (401 otherwise). Every `POST /api/...` also requires the `x-docforge-token` header (403 otherwise).
+
+| Route | Purpose |
+|---|---|
+| `GET /auth?t=TOKEN` | Starts a session: sets an HttpOnly, SameSite=Strict cookie, redirects to `/`. |
+| `GET /`, `/repos/{id}`, `/repos/{id}/manual`, `/usage`, `/runs`, `/runs/{job}`, `/runs/{job}/review`, `/security` | Pages. |
+| `POST /api/repos`, `/api/repos/{id}/remove` | Add (absolute path to a git repository) or remove a repository. |
+| `POST /api/repos/{id}/build`, `GET /repos/{id}/manual.pdf` | Build the manual; serve the newest PDF inline. |
+| `POST /api/replays/{name}`, `POST /api/repos/{id}/runs` | Start a replay, or a live run (`mode`, `task`, `base`, `title`, `note`). One live run at a time (409). |
+| `GET /api/runs/{job}/stream` | Server-Sent Events: `line` events, then one `done` event with the summary. |
+| `POST /api/runs/{job}/apply`, `/push`, `/pr` | Publish steps, only for a successful live run and only in that order (400 otherwise). See [SECURITY.md](SECURITY.md). |
+| `POST /api/security/replay`, `/api/security/live` | Replay the recorded red-team run, or run `sandbox/redteam.sh`. |
+
+<!-- sources: src/docforge/console/app.py, src/docforge/console/publish.py, src/docforge/console/runs.py -->
 
 ## Errors
 

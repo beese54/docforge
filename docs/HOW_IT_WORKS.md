@@ -76,3 +76,16 @@ Drift: for each impact rule, if a non-overridden changed file matches its globs 
 Reads the ledger and prints spend per run, this month and total.
 
 <!-- sources: src/docforge/cli.py, src/docforge/agent/budget.py -->
+
+### Workflow: Console run and publish (`docforge serve`)
+
+1. Trigger: the developer opens the printed launch link. `/auth` checks the token, sets the session cookie and shows the Repos screen.
+2. Received by: `console/app.py` (FastAPI) on 127.0.0.1, after the Host check.
+3. Processing: Repos and repo detail call `health.compute` (the same `checks.run` + drift as the CLI) and `views.coverage`/`views.adrs`.
+4. Services called: a **replay** thread plays `console/replays/<name>/trace.log` at a readable pace. A **live** run starts `sandbox/run-agent.sh <repo> <task>` and reads its output line by line; with `DOCFORGE_PROGRESS=1` the agent prints each trace line as it happens.
+5. Data stored: runs are held in memory for the session. Live outputs land in `<repo>/documentation/build/agent` exactly as with the CLI. The repository list is in `$DOCFORGE_HOME/console.json`.
+6. Asynchronous work: runs execute in background threads; the browser follows them over Server-Sent Events (`/api/runs/<job>/stream`).
+7. Result: the Review screen shows the report, the patch as a diff and any policy denials. For a successful live run, Apply → Push → Open PR appear one at a time (see [SECURITY.md](SECURITY.md#api-security) for the guards).
+8. What can fail: a second live run while one is running (409); a failed run (no patch, maybe a partial one); push without credentials (fails fast, never prompts); `gh` missing or not logged in.
+
+<!-- sources: src/docforge/console/app.py, src/docforge/console/runs.py, src/docforge/console/publish.py, src/docforge/agent/runner.py, sandbox/run-agent.sh -->

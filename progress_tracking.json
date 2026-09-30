@@ -186,7 +186,8 @@
         "8.11",
         "8.12"
       ],
-      "status": "pending"
+      "status": "done",
+      "result": "193 tests; strict self-check 0/0; end-to-end smoke test of the real server passed"
     }
   ]
 }

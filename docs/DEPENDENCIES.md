@@ -37,4 +37,20 @@
 
 - Purpose: environment and build (`uv sync`, `uv build --wheel`); CI uses `uvx`.
 
-<!-- sources: pyproject.toml, src/docforge/agent/budget.py, src/docforge/agent/runner.py, sandbox/anthropic-profile.yaml, sandbox/build.Dockerfile, src/docforge/git.py, init.sh -->
+### FastAPI, uvicorn, Jinja2, python-multipart (optional `[console]` extra)
+
+- Purpose: docforge Console only (`docforge serve`). Installed with `pip install 'docforge[console]'`, and also in the `dev` group so tests cover them. CI's `uvx` install does not pull them in, so the docs check stays small.
+- Current version: fastapi 0.142, uvicorn 0.54, Jinja2 3.1 (see `uv.lock`).
+- Replacement difficulty: low to medium. Routes and middleware are in `console/app.py`; templates are plain Jinja2; the browser code is dependency-free.
+- Upgrade considerations: re-run `tests/test_console*.py`. The security middleware (Host check, session cookie, action token) relies on Starlette's `BaseHTTPMiddleware` and cookie handling.
+
+### httpx (dev only)
+
+- Purpose: FastAPI's `TestClient` needs it for the console tests. The runtime uses the SDK's `httpx2` instead.
+
+### GitHub CLI (`gh`) and Git Credential Manager (console publishing)
+
+- Purpose: the console's Open PR button runs `gh pr create`, and its Push button runs `git push` with the developer's existing login. In WSL the console uses the Windows `gh.exe` when no Linux `gh` is installed (override with `DOCFORGE_GH`), and git's credential helper points at the Windows Git Credential Manager.
+- Replacement difficulty: low. Both calls are in `console/publish.py`.
+
+<!-- sources: pyproject.toml, uv.lock, src/docforge/agent/budget.py, src/docforge/agent/runner.py, src/docforge/console/app.py, src/docforge/console/publish.py, sandbox/anthropic-profile.yaml, sandbox/build.Dockerfile, src/docforge/git.py, init.sh -->

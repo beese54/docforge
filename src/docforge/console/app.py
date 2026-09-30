@@ -264,6 +264,26 @@ def create_app(state: ConsoleState, run_manager: runs_mod.RunManager | None = No
                     policy=policy, denials=len([ln for ln in policy.splitlines() if ln.strip()]),
                     **publish_context(job, files["report"] or ""))
 
+    # -- security scorecard ------------------------------------------------------------------------------------------
+
+    @app.get("/security", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def security_page(request: Request) -> HTMLResponse:
+        return page(request, "security.html", live_ok=run_manager.sandbox_dir is not None)
+
+    @app.post("/api/security/replay", dependencies=[Depends(action)])
+    def security_replay() -> JSONResponse:
+        return JSONResponse({"go": f"/runs/{run_manager.start_redteam_replay().id}"})
+
+    @app.post("/api/security/live", dependencies=[Depends(action)])
+    def security_live() -> JSONResponse:
+        try:
+            job = run_manager.start_redteam_live()
+        except runs_mod.BusyError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=409)
+        except FileNotFoundError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"go": f"/runs/{job.id}"})
+
     # -- publish: apply, push, open PR (guards live in publish.py) -------------------------------------------------
 
     pub_states: dict[str, publish.PublishState] = {}

@@ -25,9 +25,11 @@ There is nothing to deploy to a server.
 
 - **CI check:** on pull requests and pushes to `main`/`master`, `uvx --from "$DOCFORGE_SPEC" docforge check --strict --base <ref>`. `DOCFORGE_SPEC` is `docforge @ git+https://github.com/beese54/docforge`; that repository has been public since 2026-09-30 (first green runs: docforge `main` push and markdown-visualiser PR #1). Pin `DOCFORGE_SPEC` to a tag once releases exist.
 - **CI manual job:** on manual dispatch or tag refs, installs pandoc, tectonic and mermaid-cli, runs `docforge build`, uploads `documentation/build/*.pdf` as artifact `manual`.
-- **Agent:** `sandbox/run-agent.sh` (needs the images, the imported `anthropic` provider profile and an OpenShell gateway). Setup of the profile: see the header of `sandbox/anthropic-profile.yaml`. `sandbox/install-native-docker.sh` installs a separate Docker engine for OpenShell (not read: uncertain — verify with developer what it changes).
+- **Agent:** `sandbox/run-agent.sh` (needs the images, the imported `anthropic` provider profile and an OpenShell gateway). Setup of the profile: see the header of `sandbox/anthropic-profile.yaml`. The script ships the repository as a tar (directory uploads drop `.git`), sets `DOCFORGE_PROGRESS=1` inside the sandbox so each trace line streams out as it happens, and copies the usage ledger in and out.
+- **Native Docker engine (WSL with Docker Desktop):** `sudo sandbox/install-native-docker.sh` installs Docker's static binaries in `/opt/docker-openshell`, a systemd service `docker-openshell` on `/run/docker-openshell.sock` with its own data root (`/var/lib/docker-openshell`) and bridge ranges (172.30/172.31). Docker Desktop is untouched. OpenShell uses it through `~/.config/openshell/gateway.toml` (`[openshell.drivers.docker] socket_path`). `--uninstall` removes it. It is needed because Docker Desktop's host network cannot reach the gateway on the distro's 127.0.0.1.
+- **Console:** `pip install 'docforge[console]'` (or `uv sync --all-extras`), then `docforge serve` from the docforge checkout so it can find `sandbox/`. Only 127.0.0.1 is served; open the printed link in a browser on the same machine. For the Push and Open PR buttons in WSL: `git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"`, and `gh` (the Windows `gh.exe` is used automatically).
 
-<!-- sources: .github/workflows/docforge.yml, STATUS-2026-09-30.md, sandbox/run-agent.sh, sandbox/anthropic-profile.yaml -->
+<!-- sources: .github/workflows/docforge.yml, STATUS-2026-09-30.md, sandbox/run-agent.sh, sandbox/anthropic-profile.yaml, sandbox/install-native-docker.sh, src/docforge/cli.py, src/docforge/console/publish.py -->
 
 ## Configuration
 

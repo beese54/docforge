@@ -13,9 +13,11 @@
 
 ## Authentication
 
-No user authentication. Outbound: Anthropic API key via the SDK (`ANTHROPIC_API_KEY`). In the sandbox the key is a placeholder replaced by OpenShell at egress, only for `api.anthropic.com`, only for listed binaries (curl, python3).
+No user authentication for the CLI. Outbound: Anthropic API key via the SDK (`ANTHROPIC_API_KEY`). In the sandbox the key is a placeholder replaced by OpenShell at egress, only for `api.anthropic.com`, only for listed binaries (curl, python3).
 
-<!-- sources: src/docforge/cli.py, sandbox/anthropic-profile.yaml -->
+**Console (`docforge serve`).** A random launch token is generated per start and printed as a link. Opening it sets the `docforge_session` cookie (HttpOnly, SameSite=Strict); every page needs the cookie. The console never reads or stores the Anthropic key or any GitHub token: live runs go through `run-agent.sh` and the OpenShell provider, and publishing uses the developer's existing git credential helper and `gh` login.
+
+<!-- sources: src/docforge/cli.py, sandbox/anthropic-profile.yaml, src/docforge/console/app.py, src/docforge/console/publish.py -->
 
 ## Authorisation
 
@@ -31,21 +33,29 @@ Secret-like files are unreadable by the agent and excluded from listings, grep a
 
 ## Session Handling
 
-Not applicable (no sessions).
+The CLI has no sessions. The console has one session per launch: the token changes every time `docforge serve` starts, so old links and cookies stop working. The session lives only in the server's memory.
 
-<!-- sources: src/docforge/cli.py -->
+<!-- sources: src/docforge/cli.py, src/docforge/console/app.py -->
 
 ## API Security
 
-No inbound API. The CLI's outbound call goes to the Anthropic API over HTTPS.
+The CLI has no inbound API; its outbound call goes to the Anthropic API over HTTPS.
 
-<!-- sources: src/docforge/agent/runner.py -->
+The console's local HTTP routes assume a hostile website may be open in the same browser:
+
+- **DNS rebinding:** every request whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` is refused (403).
+- **Cross-site requests (CSRF):** state-changing `POST /api/...` routes require the launch token in the `x-docforge-token` header as well as the cookie. Only pages served by the console can read the token (from a meta tag), and the SameSite=Strict cookie is not sent cross-site.
+- **Publishing guards (`console/publish.py`):** Apply is exactly `docforge apply`. Push sends only a `docforge/*` branch that this console applied (the name is held server-side, never taken from the request), with an explicit refspec to the existing `origin`, never `--force`, never `main`/`master`, and names with `..`, empty segments or `.lock` are refused. Open PR works only for a branch this console pushed. Each step needs a browser confirm, and the confirm screen lists remote, branch, commits and files.
+- **Replays** can never be applied or pushed, and never call the model.
+- Agent-written reports are rendered with an escaping Markdown renderer, so a report cannot inject HTML.
+
+<!-- sources: src/docforge/agent/runner.py, src/docforge/console/app.py, src/docforge/console/publish.py, src/docforge/console/views.py, tests/test_console.py, tests/test_console_publish.py -->
 
 ## Network Exposure
 
-Agent sandbox: `network_policies` is empty; the only egress comes from the `anthropic` provider profile (api.anthropic.com:443). Build sandbox: no egress and no provider. No listening ports.
+Agent sandbox: `network_policies` is empty; the only egress comes from the `anthropic` provider profile (api.anthropic.com:443). Build sandbox: no egress and no provider. The console listens on `127.0.0.1` only, and has no option to bind anything else. The CLI listens on no ports.
 
-<!-- sources: sandbox/agent-policy.yaml, sandbox/build-policy.yaml, sandbox/anthropic-profile.yaml -->
+<!-- sources: sandbox/agent-policy.yaml, sandbox/build-policy.yaml, sandbox/anthropic-profile.yaml, src/docforge/cli.py -->
 
 ## Input Validation
 

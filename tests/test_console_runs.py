@@ -154,3 +154,37 @@ def test_live_rejects_unknown_task_and_adr_without_title(project: Path, tmp_path
 def test_report_renderer_escapes_html() -> None:
     html = views.render_report("# Title\n- item with `code` and <img src=x onerror=alert(1)>\n")
     assert "<h2>Title</h2>" in html and "<code>code</code>" in html and "<img" not in html
+
+
+# --- security screen (8.11) --------------------------------------------------------------------------------------
+
+
+def test_security_replay_scorecard() -> None:
+    manager = runs.RunManager(replay_delay=0)
+    client, state = make_client(manager)
+    assert "Sandbox security scorecard" in client.get("/security").text
+    r = client.post("/api/security/replay", headers={TOKEN_HEADER: state.token})
+    job = manager.get(r.json()["go"].rsplit("/", 1)[1])
+    assert job is not None
+    wait(job)
+    passes = [line for line in job.lines if line["kind"] == "pass"]
+    assert len(passes) == 9  # 8 checks + "SCORECARD: ALL PASS"
+    assert not [line for line in job.lines if line["kind"] == "fail"]
+    page = client.get(f"/runs/{job.id}").text
+    assert "Back to scorecard" in page and "Review the result" not in page
+
+
+def test_security_live_uses_redteam_script(tmp_path: Path) -> None:
+    (tmp_path / "redteam.sh").write_text('echo "5.1  real key absent  PASS"; echo "SCORECARD: ALL PASS"\n')
+    manager = runs.RunManager(sandbox_dir=tmp_path)
+    client, state = make_client(manager)
+    r = client.post("/api/security/live", headers={TOKEN_HEADER: state.token})
+    job = manager.get(r.json()["go"].rsplit("/", 1)[1])
+    assert job is not None
+    wait(job)
+    assert job.status == "ok" and any("ALL PASS" in line["text"] for line in job.lines)
+
+
+def test_security_live_needs_token() -> None:
+    client, _ = make_client(runs.RunManager(replay_delay=0))
+    assert client.post("/api/security/live").status_code == 403

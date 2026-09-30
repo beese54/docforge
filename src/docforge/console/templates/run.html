@@ -12,10 +12,18 @@
       <span class="sub">Cost: <b id="cost" class="mono">${{ '%.4f' % job.cost }}</b>{% if job.mode == 'replay' %} recorded · $0 spent now{% endif %}</span>
     </div>
   </div>
+  {% if job.task != 'redteam' %}
   <div class="actions"><a id="review" href="/runs/{{ job.id }}/review" {{ '' if job.status != 'running' else 'hidden' }}><button class="gate" type="button">Review the result</button></a></div>
+  {% else %}
+  <div class="actions"><a href="/security"><button class="ghost" type="button">Back to scorecard</button></a></div>
+  {% endif %}
 </div>
 <div class="log" id="log" aria-live="polite" aria-label="Run log"></div>
+{% if job.task == 'redteam' %}
+<p class="note">Green lines are attacks that were blocked as expected. A red FAIL line means a control did not hold.</p>
+{% else %}
 <p class="note">Teal lines are model turns with their cost. The other lines are the agent's tool calls, all made through docforge's policy layer inside the sandbox.</p>
+{% endif %}
 <script>
   window.addEventListener("DOMContentLoaded", function () {
     const log = document.getElementById("log");
@@ -32,7 +40,8 @@
       st.textContent = done.status;
       st.className = "pill " + (done.status === "ok" ? "pass" : "fail");
       cost.textContent = "$" + Number(done.cost).toFixed(4);
-      document.getElementById("review").hidden = false;
+      const review = document.getElementById("review");
+      if (review) review.hidden = false;
     });
   });
 </script>

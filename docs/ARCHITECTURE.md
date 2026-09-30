@@ -4,7 +4,7 @@
 
 ## Overview
 
-docforge is a single Python package (`src/docforge`) exposing one CLI. It has no server, database or long-running process. It works on a target git repository (its own, for self-documentation) and on a small set of files there: `docforge.toml`, `docs/`, `README.md`, `CHANGELOG.md`, `documentation/`.
+docforge is a single Python package (`src/docforge`) exposing one CLI. It has no database. The only long-running process is the optional **docforge Console** (`docforge serve`), a local-only demo web UI that drives the same functions and sandbox scripts ([ADR-008](adr/008-local-console-over-cli.md)). It works on a target git repository (its own, for self-documentation) and on a small set of files there: `docforge.toml`, `docs/`, `README.md`, `CHANGELOG.md`, `documentation/`.
 
 <!-- sources: pyproject.toml, src/docforge/cli.py, src/docforge/config.py -->
 
@@ -22,8 +22,9 @@ docforge is a single Python package (`src/docforge`) exposing one CLI. It has no
 | `apply.py` | Applies a reviewed patch on a new branch, re-checking paths. |
 | `build.py`, `templates/docforge.lua` | Markdown to pandoc to LaTeX to PDF; Lua filter renders Mermaid and rewrites cross-file links. |
 | `sandbox/` | OpenShell policies, Docker images and scripts for running the agent and the PDF build in isolation. |
+| `console/` | Optional local web UI (`[console]` extra: FastAPI, uvicorn, Jinja2). `app.py` routes and security middleware; `health.py`/`views.py` reuse `checks`, `drift`, `build` and the ledger; `runs.py` plays recorded runs from `console/replays/` or starts `sandbox/run-agent.sh` / `redteam.sh`; `publish.py` guards apply, push and PR creation. |
 
-<!-- sources: src/docforge/*.py, src/docforge/agent/*.py, src/docforge/templates/docforge.lua, sandbox/ -->
+<!-- sources: src/docforge/*.py, src/docforge/agent/*.py, src/docforge/console/*.py, src/docforge/templates/docforge.lua, sandbox/ -->
 
 ## Information Flow
 
@@ -43,6 +44,18 @@ flowchart LR
 3. A human reviews, then `docforge apply` checks the paths again and commits on a new branch. Nothing is pushed.
 
 Workflow detail: [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
+
+The console adds no new path for data: a browser on the same machine talks to `docforge serve` on 127.0.0.1, which calls the functions above or starts `sandbox/run-agent.sh` and streams its output back over Server-Sent Events. Push and PR creation use the developer's existing git and `gh` logins.
+
+```mermaid
+flowchart LR
+  Browser -->|127.0.0.1 only, launch token| Console[docforge serve]
+  Console -->|check, build, apply| Lib[docforge modules]
+  Console -->|live run| SB[run-agent.sh → OpenShell]
+  Console -->|replay| Rec[(console/replays)]
+  Console -->|push docforge/* only| Origin[(origin)]
+  Console -->|gh pr create| GH[GitHub]
+```
 
 <!-- sources: src/docforge/agent/runner.py, src/docforge/agent/policy.py, src/docforge/agent/patch.py, src/docforge/apply.py, sandbox/run-agent.sh -->
 
