@@ -4,9 +4,11 @@
 
 docforge is a command-line tool for keeping engineering documentation in a repository accurate ("docs-as-code"). It scaffolds a fixed documentation set, checks it deterministically (structure, sections, links, ADRs, drift between code and docs), runs an AI agent inside a sandbox to *propose* documentation patches, and builds the Markdown into a versioned PDF manual.
 
-Design background lives in `specification.json` and `definition_of_done.md` (not reviewed while writing these docs: uncertain — verify with developer).
+An optional local web UI, **docforge Console** (`docforge serve`), drives the same commands and sandbox scripts for demos (see [Screenshots](#screenshots)).
 
-<!-- sources: pyproject.toml, src/docforge/cli.py, README.md (previous version) -->
+Design background: `specification.json` (features, contracts, the console spec), `definition_of_done.md` (a testable criterion and its check for every task) and `progress_tracking.json` (the task ledger, T0–T17).
+
+<!-- sources: pyproject.toml, src/docforge/cli.py, specification.json, definition_of_done.md, progress_tracking.json -->
 
 ## Technologies
 
@@ -21,9 +23,39 @@ See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 ## Architecture at a Glance
 
-Commands: `init`, `check`, `build`, `agent {impact,adr,bootstrap}`, `apply`, `usage`. The agent can only read the repository and *stage* Markdown writes; a human reviews `docforge.patch` and `docforge apply` commits it to a new branch. CI runs only the deterministic `check`; the model is never called in CI. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Commands: `init`, `check`, `build`, `agent {impact,adr,bootstrap}`, `apply`, `usage`, `serve`. The agent can only read the repository and *stage* Markdown writes; a human reviews `docforge.patch` and `docforge apply` commits it to a new branch. CI runs only the deterministic `check`; the model is never called in CI. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 <!-- sources: src/docforge/cli.py, .github/workflows/docforge.yml -->
+
+## Screenshots
+
+docforge Console (`docforge serve`), following the 5-minute route in [docs/DEMO.md](docs/DEMO.md). The run shown is a free replay of a real recorded run on [markdown-visualiser](https://github.com/beese54/markdown-visualiser/pull/1).
+
+**Repositories.** Documentation health from the same checks as `docforge check`.
+
+![Repositories screen: markdown-visualiser and docforge both Healthy, with 0 errors, warnings and drift](docs/images/console/1-repos.png)
+
+**Repository detail.** 13 of 13 docs complete, and the 8 decision records the agent wrote.
+
+![Repository detail for markdown-visualiser: per-document coverage, decision records and check results](docs/images/console/2-repo-detail.png)
+
+**Agent run.** The sandboxed agent reads the code and drafts docs. Teal lines are model turns with their cost.
+
+![A documentation run streaming: model turns with cost, then the agent's file reads and document writes](docs/images/console/3-agent-run-streaming.png)
+
+**Review.** The agent's report next to its proposed changes. Here it flags a real security gap it found in the code (an unused sanitiser schema) instead of papering over it.
+
+![Review screen: the agent's list of discrepancies found in the code, next to a coloured diff of its proposed changes](docs/images/console/4-review-findings.png)
+
+**Security scorecard.** Every sandbox control is tested by running the attack it must stop: 8 of 8 blocked.
+
+![Security scorecard: eight PASS results and SCORECARD: ALL PASS](docs/images/console/5-security-scorecard.png)
+
+**Usage.** Every model call is recorded, with a hard monthly cap.
+
+![Usage screen: $2.98 spent of the $10.00 monthly cap, with every agent run listed](docs/images/console/6-usage.png)
+
+<!-- sources: docs/images/console/, docs/DEMO.md, src/docforge/console/ -->
 
 ## Prerequisites
 
