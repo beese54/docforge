@@ -1,0 +1,30 @@
+{
+  "run_id": "07f9d223ba2d",
+  "command": "bootstrap",
+  "status": "ok",
+  "cost_usd": 0.734418,
+  "turns": 22,
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/API.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DATA_MODEL.md",
+    "docs/DEPENDENCIES.md",
+    "docs/DEPLOYMENT.md",
+    "docs/DESIGN.md",
+    "docs/HOW_IT_WORKS.md",
+    "docs/MAINTENANCE.md",
+    "docs/OPERATIONS.md",
+    "docs/SECURITY.md",
+    "docs/TESTING.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/adr/001-human-reviewed-patches-only.md",
+    "docs/adr/002-budget-guard-and-manual-agent-loop.md",
+    "docs/adr/003-openshell-sandboxes.md",
+    "docs/adr/004-deterministic-checks-in-ci.md",
+    "docs/adr/005-impact-map-drift-detection.md",
+    "docs/adr/006-pandoc-tectonic-manual-pipeline.md",
+    "docs/adr/007-doctypes-single-source-of-truth.md"
+  ]
+}

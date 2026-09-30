@@ -10,7 +10,15 @@ Repository Markdown must become a versioned PDF manual, including Mermaid diagra
 
 ## Options Considered
 
-Alternatives are not recorded in the repository (uncertain — verify with developer).
+Recorded in `tasks/docs-as-code-requirements.md` (question #3) and the T2/T6 commits:
+
+- **Quarto.** Markdown → LaTeX → PDF with Mermaid, cross-references and a preview built in. Fastest to ship, but it brings its own project format and a large toolchain, and gives less control over how multi-file links are resolved.
+- **Pandoc with a fully custom LaTeX template (Eisvogel-style).** Maximum control of the look, but a large template to maintain.
+- **Pandoc with its default LaTeX template, plus a small include-in-header file and a Lua filter** (chosen).
+- **TeX engines:** a full TeX Live install (several GB, needs downloads at build time) or **tectonic** (single binary, fetches only the packages a document uses, and its cache can be pre-warmed for offline builds).
+
+<!-- sources: tasks/docs-as-code-requirements.md, specification.json, src/docforge/templates/manual.yaml, sandbox/build.Dockerfile -->
+
 
 ## Decision
 
@@ -18,7 +26,13 @@ Alternatives are not recorded in the repository (uncertain — verify with devel
 
 ## Rationale
 
-Visible in `build.py` and `docforge.lua` comments (pandoc does not rewrite links whose path does not match an input literally; relative repo paths mean nothing on paper). Choice of tectonic over other TeX engines: uncertain — verify with developer.
+- The source brief asked for Pandoc and for Markdown to remain the single source of truth. Pandoc reads the same GitHub-flavoured Markdown the repository renders, so no second format is introduced.
+- The default template plus a ~20-line header (`manual-header.tex`) already gives TOC, numbered sections, figures, headers and footers. A custom template would add maintenance without changing the result (deviation from the original spec, recorded in commit `cfd3dca`).
+- A Lua filter is needed anyway: pandoc does not rewrite links whose path does not literally match an input, and relative repo paths mean nothing on paper (`build.py`, `docforge.lua`).
+- tectonic keeps the build image small and, with its cache warmed at image build time, lets the manual build with **no network**, which is what the build sandbox policy requires (`sandbox/build-policy.yaml`, red-team 5.4b).
+
+<!-- sources: src/docforge/build.py, src/docforge/templates/docforge.lua, src/docforge/templates/manual-header.tex, sandbox/build-policy.yaml, evidence/pilot-runs.md -->
+
 
 ## Consequences
 

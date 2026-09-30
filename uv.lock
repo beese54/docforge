@@ -143,6 +143,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "httpx2" },
     { name = "typer" },
 ]
 
@@ -157,6 +158,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic" },
+    { name = "httpx2", specifier = ">=2.13.1" },
     { name = "typer", specifier = ">=0.12" },
 ]
 

@@ -10,7 +10,7 @@
 - Current version: SDK unpinned in `pyproject.toml`; resolved version is in `uv.lock` (not read). Model `claude-sonnet-5-5`, hard-coded.
 - Why it is used: the only model provider implemented.
 - Replacement difficulty: high. The runner uses streaming, `count_tokens`, adaptive thinking, `output_config`, prompt caching and strict tool schemas; prices are hard-coded per model in `budget.py`.
-- Upgrade considerations: the runner imports `httpx2` (the SDK's HTTP client) for error handling and catches `TypeError` for missing credentials; both depend on SDK internals.
+- Upgrade considerations: the runner imports `httpx2` (the SDK's HTTP client) to catch a stream cut mid-body (`httpx2.RemoteProtocolError`, which the SDK does not wrap). `httpx2` is therefore declared as a direct dependency in `pyproject.toml`, so an SDK change of HTTP client cannot silently break that import. The runner also catches `TypeError` for missing credentials. Both depend on SDK internals, so re-run `tests/test_agent.py` after any SDK upgrade.
 - Known limitations: costs come from a price table copied on 2026-09-25 (per its comment); it may go stale.
 
 ### OpenShell
