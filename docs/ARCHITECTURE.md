@@ -51,7 +51,7 @@ Workflow detail: [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 - Anthropic API (`api.anthropic.com:443`), model `claude-sonnet-5-5`, used only by `docforge agent`.
 - git CLI, pandoc, tectonic, mermaid-cli (`mmdc`).
 - OpenShell (sandbox runtime) and Docker.
-- GitHub Actions (CI). The workflow installs docforge from `github.com/beese54/docforge`; the repository's own status note says that repository did not yet exist (2026-09-30).
+- GitHub Actions (CI). The workflow installs docforge from `github.com/beese54/docforge`; that repository is public since 2026-09-30, and CI installs from it.
 
 <!-- sources: src/docforge/agent/budget.py, .github/workflows/docforge.yml, STATUS-2026-09-30.md, sandbox/anthropic-profile.yaml -->
 

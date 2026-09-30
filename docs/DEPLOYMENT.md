@@ -23,7 +23,7 @@
 
 There is nothing to deploy to a server.
 
-- **CI check:** on pull requests and pushes to `main`/`master`, `uvx --from "$DOCFORGE_SPEC" docforge check --strict --base <ref>`. `DOCFORGE_SPEC` is `docforge @ git+https://github.com/beese54/docforge`; per the 2026-09-30 status note this repository did not exist yet, so the check cannot pass on GitHub until it does (or the variable is changed).
+- **CI check:** on pull requests and pushes to `main`/`master`, `uvx --from "$DOCFORGE_SPEC" docforge check --strict --base <ref>`. `DOCFORGE_SPEC` is `docforge @ git+https://github.com/beese54/docforge`; that repository has been public since 2026-09-30 (first green runs: docforge `main` push and markdown-visualiser PR #1). Pin `DOCFORGE_SPEC` to a tag once releases exist.
 - **CI manual job:** on manual dispatch or tag refs, installs pandoc, tectonic and mermaid-cli, runs `docforge build`, uploads `documentation/build/*.pdf` as artifact `manual`.
 - **Agent:** `sandbox/run-agent.sh` (needs the images, the imported `anthropic` provider profile and an OpenShell gateway). Setup of the profile: see the header of `sandbox/anthropic-profile.yaml`. `sandbox/install-native-docker.sh` installs a separate Docker engine for OpenShell (not read: uncertain — verify with developer what it changes).
 

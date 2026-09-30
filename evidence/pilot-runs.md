@@ -29,7 +29,7 @@ Branches, local only: `docforge/scaffold` (init output), then `docforge/bootstra
 | 6.5 | **PASS.** The README went from long to 118 lines. Deep material moved to docs/ and ADR-002. |
 | 6.6 | **PASS (12/13; 1 partly).** Only production deployment is marked uncertain, because the repo defines none (`evidence/final-objective.md`). |
 | 6.7 | **PASS.** 62-page PDF, 0 unresolved references (`evidence/pilot-manual-428e509.pdf`). |
-| 6.8 | **Pending the user.** The PR must be pushed and opened by the owner. CI needs `DOCFORGE_SPEC` to point to a published docforge repo. |
+| 6.8 | **PASS.** https://github.com/beese54/markdown-visualiser/pull/1. The `docforge check --strict` workflow is green (docforge installed from the now-public github.com/beese54/docforge). |
 
 ## Findings for the pilot's owner (from the agent's report, confirmed)
 1. `src/pipeline/sanitize.ts` exports `printSchema` ("applied server-side before the print service hands HTML to Chromium"), but nothing uses it. The server does no sanitisation.

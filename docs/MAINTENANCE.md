@@ -58,7 +58,7 @@ Not a service. For changes: run tests and lint ([TESTING.md](TESTING.md)); if yo
 
 ## Known Technical Debt
 
-- CI installs docforge from a repository that did not exist at last status (2026-09-30).
+- CI installs docforge from `main` of github.com/beese54/docforge (unpinned). Pin it to a tag once releases exist, so a docforge change cannot break other repos' CI.
 - The build-sandbox red-team checks (5.4, 5.4b) still needed a rerun under OpenShell at that date.
 - No CI job runs pytest, ruff or mypy (workflow only runs `docforge check` and the manual build).
 - Prices and model id are hard-coded.

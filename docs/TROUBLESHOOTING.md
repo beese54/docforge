@@ -50,7 +50,7 @@
 
 ### Problem: CI `docforge check` fails at install
 
-- Likely cause: `DOCFORGE_SPEC` points at `github.com/beese54/docforge`, which did not exist at 2026-09-30.
+- Likely cause: `DOCFORGE_SPEC` points at `github.com/beese54/docforge`, which did not exist before 2026-09-30 *(historical: the repository is now public)*. If the install fails again, check the repository/tag in `DOCFORGE_SPEC` is reachable.
 - Resolution: publish the repository or change `DOCFORGE_SPEC`.
 
 <!-- sources: src/docforge/agent/budget.py, src/docforge/agent/runner.py, src/docforge/apply.py, src/docforge/drift.py, src/docforge/build.py, sandbox/build.Dockerfile, sandbox/build-policy.yaml, sandbox/redteam.sh, STATUS-2026-09-30.md, .github/workflows/docforge.yml -->

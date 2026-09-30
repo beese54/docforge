@@ -128,8 +128,8 @@
         "6.7",
         "6.8"
       ],
-      "status": "done-pending-pr",
-      "result": "6.1-6.7 PASS (6.4: 19/20 true, 0 false; 6.6: 12/13 + 1 partly); 6.8 = CI on the pilot PR"
+      "status": "done",
+      "result": "6.1-6.7 PASS (6.4: 19/20 true, 0 false; 6.6: 12/13 + 1 partly); 6.8 = CI on the pilot PR; 6.8 PASS (markdown-visualiser PR #1, CI green)"
     },
     {
       "id": "T12",
