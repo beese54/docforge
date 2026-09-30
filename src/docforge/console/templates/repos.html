@@ -8,7 +8,7 @@
   </div>
   <form class="inline" data-action="/api/repos" data-json='{"path": "#repo-path"}' data-reload>
     <label for="repo-path" class="sr">Repository path</label>
-    <input id="repo-path" name="path" placeholder="/home/allti/pilot-live" required>
+    <input id="repo-path" name="path" placeholder="/full/path/to/your/repo" required>
     <button type="submit">Add repository</button>
   </form>
 </div>
@@ -41,7 +41,7 @@
 {% else %}
 <section class="empty">
   <h2>No repositories yet</h2>
-  <p>Add a local git repository by its path, for example <code>/home/allti/pilot-live</code> or this project's own folder. The console runs the same checks as <code>docforge check</code> and shows the results here.</p>
+  <p>Add a local git repository by its path, for example <code>/home/you/my-project</code>. The console runs the same checks as <code>docforge check</code> and shows the results here.</p>
 </section>
 {% endif %}
 {% endblock %}
