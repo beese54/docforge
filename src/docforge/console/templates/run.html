@@ -9,7 +9,11 @@
       <span class="pill {{ job.mode }}">{{ job.mode|capitalize }}</span>
       <span class="pill info">{{ job.task }}</span>
       <span id="status" class="pill info">{{ job.status }}</span>
+      {% if job.task == 'redteam' %}
+      <span class="sub">No model calls: nothing is spent.</span><b id="cost" hidden></b>
+      {% else %}
       <span class="sub">Cost: <b id="cost" class="mono">${{ '%.4f' % job.cost }}</b>{% if job.mode == 'replay' %} recorded · $0 spent now{% endif %}</span>
+      {% endif %}
     </div>
   </div>
   {% if job.task != 'redteam' %}

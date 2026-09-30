@@ -82,6 +82,7 @@ tr:last-child td { border-bottom: 0; }
 .pill.live { color: var(--sandbox); }
 
 .log { background: #0f171b; color: #d7e3e6; font: 12.5px/1.5 var(--mono); padding: 12px; height: 360px; overflow: auto; border: 1px solid var(--rule); }
+.log .ln { white-space: pre-wrap; }  /* keep column alignment and indentation from the tools' output */
 .log .ln.turn { color: #7fd1c7; }
 .log .ln.tool { color: #d7e3e6; }
 .log .ln.error, .log .ln.fail { color: #f0948c; }
