@@ -338,5 +338,48 @@
     "Confirm: the agent runs on demand in OpenShell, and CI stays AI-free (resolves the tension between defaults #8 and #14)",
     "Confirm: the v2 reader reuses markdown-visualiser",
     "Confirm: the bootstrap PR on markdown-visualiser may propose trimming its README in favour of docs/"
-  ]
+  ],
+  "console": {
+    "status": "PROPOSED 2026-09-30, awaiting approval",
+    "purpose": "Local demo web UI over the existing CLI and sandbox scripts. It adds no new documentation logic; every action calls existing docforge functions or sandbox/run-agent.sh.",
+    "decisions": {
+      "hosting": "Local only: `docforge serve` binds 127.0.0.1 (USER)",
+      "runs": "Replay mode by default: recorded runs in evidence/ are played back at readable speed, at $0 cost (USER). A 'Live' toggle, off by default, runs the real agent in OpenShell with the normal budget caps [ASSUMED]",
+      "push_and_pr": "Push and open-PR buttons included (USER), behind guards (see security)",
+      "stack": "FastAPI + uvicorn + Jinja2 templates in the docforge package; htmx vendored locally (no CDN); Server-Sent Events for live logs; no frontend build step [ASSUMED]"
+    },
+    "screens": {
+      "repos": "Add or remove a local repo path. Health per repo: check errors, warnings, drift, uncertain count, last agent run",
+      "repo_detail": "Doc coverage (required sections present per doc), findings list, ADR list with status",
+      "run_agent": "Choose impact / adr / bootstrap, show the cost cap, stream sandbox progress (trace lines, per-turn cost) live or as replay",
+      "review": "Patch as a coloured diff next to report.md and policy.log; buttons: Apply (branch), Push, Open PR",
+      "manual": "Build the PDF (host or build sandbox) and preview it in the page",
+      "security": "Run sandbox/redteam.sh live or replay the recorded 8/8 scorecard",
+      "usage": "Spend per run and per month vs caps, from ~/.docforge/usage.jsonl"
+    },
+    "security": {
+      "network": "Binds 127.0.0.1 only; requests whose Host header is not localhost/127.0.0.1 are rejected (DNS-rebinding defence)",
+      "csrf": "Every state-changing request needs a per-launch token in a header; `docforge serve` prints the URL containing it",
+      "api_key": "The console never reads or stores the Anthropic key; live runs go through run-agent.sh and the OpenShell provider",
+      "apply": "Calls docforge apply unchanged (docs-only path re-check, new branch, no push)",
+      "push_guard": "Push only branches named docforge/* that `apply` created, to the repo's existing `origin`; never --force; never main/master; the UI shows remote, branch, commits and files and needs an explicit confirm",
+      "open_pr_guard": "Only for a branch already pushed by the console; title/body prefilled from report.md and editable; the body ends with the Claude Code attribution; created with gh against the origin repo",
+      "credentials": "Uses the user's existing GitHub login on Windows (Git Credential Manager for push, gh.exe for PRs) via WSL interop. The console stores no tokens. One-time setup: point WSL git's credential helper at Windows GCM (needs user OK)"
+    },
+    "replay": {
+      "sources": [
+        "evidence/t10-impact",
+        "evidence/t11-bootstrap",
+        "evidence/t12-dogfood",
+        "evidence/pilot-runs.md (red-team scorecard)"
+      ],
+      "behaviour": "Streams the recorded trace.log lines with pacing, then shows the recorded report and patch. Replays are clearly labelled 'Replay' and never apply, push or spend"
+    },
+    "out_of_scope": [
+      "Hosting or multi-user access",
+      "Editing docs in the browser",
+      "Merging PRs from the UI",
+      "Authentication beyond the local launch token"
+    ]
+  }
 }

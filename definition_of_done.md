@@ -74,3 +74,19 @@ Criteria marked 💲 spend real API credit. They run only after you approve, and
 |---|---|---|
 | 7.1 | docforge's own repo passes `check --strict`, with ADR-001 (Pandoc vs Quarto) | `docforge check --strict` in its own repo |
 | 7.2 | Total live spend for the MVP is ≤ $10.00 | `docforge usage --total` |
+
+## P8: docforge Console (local demo web UI), PROPOSED
+| # | Criterion | Verified by |
+|---|---|---|
+| 8.1 | `docforge serve` listens on 127.0.0.1 only, and prints a URL with its launch token | `pytest -k serve_bind` + `ss -ltn` shows 127.0.0.1 only |
+| 8.2 | Requests with a non-local Host header are rejected (403) | `pytest -k host_check` |
+| 8.3 | Every state-changing request without the launch token is rejected (403) | `pytest -k csrf` |
+| 8.4 | Repos and detail screens show the same findings as `docforge check --format json` | `pytest -k health_matches_cli` |
+| 8.5 | Manual builds and previews in-page; Usage totals equal `docforge usage` | `pytest -k manual`, `pytest -k usage_matches` |
+| 8.6 | Replay plays T10, T11 and T12 recordings end to end, costs $0, and cannot apply or push | `pytest -k replay` (ledger unchanged) |
+| 8.7 | A live run streams progress and produces the same outputs as `run-agent.sh` | Manual demo run, cost shown and ≤ cap |
+| 8.8 | Apply from the UI = `docforge apply` (docs-only re-check, new branch) | `pytest -k ui_apply` |
+| 8.9 | Push refuses non-`docforge/*` branches, main/master and any force; needs confirm | `pytest -k push_guard` (local bare remote) |
+| 8.10 | Open PR works only for a console-pushed branch; body ends with the attribution | `pytest -k pr_guard` (fake gh) + one real PR in the demo |
+| 8.11 | Security screen replays 8/8 and can run `redteam.sh` live | `pytest -k security_replay` + one live run |
+| 8.12 | `docforge check --strict` still passes on docforge; all tests green | `docforge check --strict`, `pytest` |

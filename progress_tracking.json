@@ -140,6 +140,53 @@
       ],
       "status": "done",
       "result": "bootstrap $0.7344; check --strict 0/0 (7.1); total spend $2.98 <= $10 (7.2); ADR-006 = pandoc vs Quarto"
+    },
+    {
+      "id": "T13",
+      "title": "Console skeleton: `docforge serve`, localhost + Host check + CSRF token, repo registry, Repos screen with health",
+      "dod": [
+        "8.1",
+        "8.2",
+        "8.3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T14",
+      "title": "Repo detail, Manual (build + inline PDF preview), Usage screen",
+      "dod": [
+        "8.4",
+        "8.5"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T15",
+      "title": "Agent runs: replay engine over evidence/ + live runs via run-agent.sh with SSE streaming; Review screen (diff, report, policy log)",
+      "dod": [
+        "8.6",
+        "8.7"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T16",
+      "title": "Apply, Push, Open PR with guards; credential setup via Windows GCM + gh.exe",
+      "dod": [
+        "8.8",
+        "8.9",
+        "8.10"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "T17",
+      "title": "Security screen (live/replay red-team), demo walkthrough doc, docforge docs updated for the console",
+      "dod": [
+        "8.11",
+        "8.12"
+      ],
+      "status": "pending"
     }
   ]
 }
