@@ -32,8 +32,8 @@ CANDIDATES: tuple[Candidate, ...] = (
         "poetry.lock", "requirements*.txt", "go.mod", "Cargo.toml", "Gemfile", "composer.json", "pom.xml",
         "build.gradle*")),
     Candidate("deployment", ("docs/DEPLOYMENT.md", "docs/OPERATIONS.md"), True, (
-        "Dockerfile", "**/Dockerfile", "docker-compose*.yml", "compose*.yaml", "init.sh", "Procfile", "fly.toml",
-        "vercel.json", "netlify.toml", "**/*.tf", "k8s/**", "helm/**", "deploy/**", "infra/**")),
+        "Dockerfile", "**/Dockerfile", "**/*.Dockerfile", "docker-compose*.yml", "compose*.yaml", "init.sh", "Procfile",
+        "fly.toml", "vercel.json", "netlify.toml", "**/*.tf", "k8s/**", "helm/**", "deploy/**", "infra/**")),
     Candidate("data", ("docs/DATA_MODEL.md",), True, (
         "**/migrations/**", "prisma/schema.prisma", "**/schema.sql", "**/models.py", "**/types/domain.ts")),
     Candidate("security", ("docs/SECURITY.md",), True, (

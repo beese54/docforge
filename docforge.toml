@@ -1,0 +1,69 @@
+# docforge configuration. Docs: https://github.com/beese54/docforge  (uncertain — verify with developer)
+
+[project]
+name = "docforge"
+manual_title = "docforge Technical Manual"
+
+# [docs]
+# required = [...]            # defaults to README, CHANGELOG and the 12 docs/*.md files
+
+# Impact map: when files matching `globs` change, one of `docs` should change too.
+# adr_worthy categories fail `docforge check --strict` (CI) instead of only warning.
+# This map was guessed by `docforge init` from the repository layout. Review it.
+[[impact]]
+category = "dependencies"
+globs = ["pyproject.toml", "uv.lock"]
+docs = ["docs/DEPENDENCIES.md"]
+adr_worthy = true
+
+[[impact]]
+category = "security"
+globs = ["src/docforge/agent/policy.py", "src/docforge/agent/budget.py", "src/docforge/apply.py", "sandbox/*-policy.yaml", "sandbox/anthropic-profile.yaml"]
+docs = ["docs/SECURITY.md"]
+adr_worthy = true
+
+[[impact]]
+category = "deployment"
+globs = ["init.sh", "sandbox/*.Dockerfile", "sandbox/*.sh", "src/docforge/templates/docforge.yml"]
+docs = ["docs/DEPLOYMENT.md", "docs/OPERATIONS.md"]
+adr_worthy = true
+
+[[impact]]
+category = "api"
+globs = ["src/docforge/cli.py"]
+docs = ["docs/API.md"]
+adr_worthy = false
+
+[[impact]]
+category = "architecture"
+globs = ["src/docforge/**/*.py", "src/docforge/templates/docforge.lua"]
+docs = ["docs/ARCHITECTURE.md", "docs/HOW_IT_WORKS.md", "docs/DESIGN.md"]
+adr_worthy = false
+
+[manual]
+# Chapter order for the PDF manual. Globs are expanded in sorted order.
+chapters = [
+  "README.md",
+  "docs/ARCHITECTURE.md",
+  "docs/DESIGN.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/DATA_MODEL.md",
+  "docs/API.md",
+  "docs/SECURITY.md",
+  "docs/DEPLOYMENT.md",
+  "docs/TESTING.md",
+  "docs/OPERATIONS.md",
+  "docs/MAINTENANCE.md",
+  "docs/TROUBLESHOOTING.md",
+  "docs/DEPENDENCIES.md",
+  "docs/adr/[0-9]*.md",
+  "CHANGELOG.md",
+]
+
+[budget]
+monthly_usd = 10.0
+
+[budget.per_run_usd]
+impact = 0.50
+adr = 0.30
+bootstrap = 3.00

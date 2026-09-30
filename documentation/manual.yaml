@@ -1,0 +1,22 @@
+# Pandoc defaults for the PDF manual. `docforge build` adds inputs, metadata and the header include.
+from: gfm+tex_math_dollars+yaml_metadata_block
+pdf-engine: tectonic
+table-of-contents: true
+toc-depth: 2
+number-sections: true
+top-level-division: chapter
+file-scope: true
+variables:
+  documentclass: report
+  papersize: a4
+  geometry:
+    - margin=25mm
+  fontsize: 11pt
+  mainfont: DejaVu Serif
+  sansfont: DejaVu Sans
+  monofont: DejaVu Sans Mono
+  colorlinks: true
+  linkcolor: black
+  urlcolor: blue
+  lof: false # set true once the docs contain captioned figures (e.g. Mermaid diagrams)
+  lot: false
