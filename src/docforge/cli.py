@@ -234,6 +234,26 @@ def apply(
 
 
 @app.command()
+def serve(
+    port: Annotated[int, typer.Option("--port", help="Port on 127.0.0.1.")] = 8765,
+) -> None:
+    """Start docforge Console, the local web UI. Binds 127.0.0.1 only; open the printed link."""
+    try:
+        import uvicorn
+
+        from docforge.console.app import ConsoleState, create_app
+    except ImportError as exc:
+        typer.echo("error: the console needs extra packages: pip install 'docforge[console]'", err=True)
+        raise typer.Exit(2) from exc
+
+    state = ConsoleState(port=port)
+    typer.echo("docforge Console (local only). Open this link in your browser:")
+    typer.echo(f"  {state.launch_url()}")
+    typer.echo("The link holds a one-time session token; anyone without it gets 'Session needed'. Ctrl+C to stop.")
+    uvicorn.run(create_app(state), host="127.0.0.1", port=port, log_level="warning")
+
+
+@app.command()
 def usage(
     last: Annotated[bool, typer.Option("--last", help="Only the most recent run.")] = False,
 ) -> None:

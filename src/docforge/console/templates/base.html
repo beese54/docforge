@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docforge-token" content="{{ token }}">
+  <title>{% block title %}docforge Console{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="/">docforge <span>Console</span></a>
+    <nav>
+      <a href="/" class="{{ 'on' if active == 'repos' }}">Repos</a>
+      <a href="/runs" class="{{ 'on' if active in ('runs', 'run', 'review') }}">Agent runs</a>
+      <a href="/security" class="{{ 'on' if active == 'security' }}">Security</a>
+      <a href="/usage" class="{{ 'on' if active == 'usage' }}">Usage</a>
+    </nav>
+    <span class="ver">v{{ version }} · local only</span>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

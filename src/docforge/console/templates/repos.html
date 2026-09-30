@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Repos · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label">Documentation health</div>
+    <h1>Repositories</h1>
+  </div>
+  <form class="inline" data-action="/api/repos" data-json='{"path": "#repo-path"}' data-reload>
+    <label for="repo-path" class="sr">Repository path</label>
+    <input id="repo-path" name="path" placeholder="/home/allti/pilot-live" required>
+    <button type="submit">Add repository</button>
+  </form>
+</div>
+
+{% if rows %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Repository</th><th>Status</th><th class="num">Errors</th><th class="num">Warnings</th><th class="num">Drift</th><th class="num">Uncertain</th><th>Last agent run</th><th></th></tr></thead>
+  <tbody>
+  {% for repo, h in rows %}
+    <tr>
+      <td><a href="/repos/{{ repo.id }}"><b>{{ repo.name }}</b></a><div class="sub mono">{{ repo.path }}</div></td>
+      <td>
+        <span class="pill {{ h.state }}">{{ {'healthy':'Healthy','attention':'Needs attention','failing':'Failing','setup':'Not set up'}[h.state] }}</span>
+        {% if h.error %}<div class="sub err">{{ h.error }}</div>{% endif %}
+      </td>
+      {% if h.initialised and not h.error %}
+      <td class="num">{{ h.errors }}</td><td class="num">{{ h.warnings }}</td><td class="num">{{ h.drift }}</td><td class="num">{{ h.uncertain }}</td>
+      {% else %}
+      <td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td>
+      {% endif %}
+      <td>{% if h.last_run %}<span class="mono">{{ h.last_run.command }}</span> · ${{ '%.4f' % h.last_run.cost_usd }}{% if h.last_run.status == 'failed' %} · <span class="err">failed</span>{% endif %}{% else %}<span class="sub">none</span>{% endif %}</td>
+      <td><button class="ghost" data-action="/api/repos/{{ repo.id }}/remove" data-reload data-confirm="Remove {{ repo.name }} from the console? Files are not touched.">Remove</button></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="note">Counts come from the same checks as <code>docforge check</code>. Drift compares your branch with the main branch, plus uncommitted work.</p>
+{% else %}
+<section class="empty">
+  <h2>No repositories yet</h2>
+  <p>Add a local git repository by its path, for example <code>/home/allti/pilot-live</code> or this project's own folder. The console runs the same checks as <code>docforge check</code> and shows the results here.</p>
+</section>
+{% endif %}
+{% endblock %}
