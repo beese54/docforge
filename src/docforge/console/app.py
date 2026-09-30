@@ -28,7 +28,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 from docforge import __version__, build
 from docforge.config import DEFAULT_MONTHLY_USD, DEFAULT_PER_RUN_USD, ConfigError, load
-from docforge.console import health, registry, views
+from docforge.console import health, publish, registry, views
 from docforge.console import runs as runs_mod
 
 HERE = Path(__file__).parent
@@ -262,11 +262,69 @@ def create_app(state: ConsoleState, run_manager: runs_mod.RunManager | None = No
                     files=views.patch_files(patch or files["partial"] or ""),
                     report_html=views.render_report(files["report"] or "_No report was written._"),
                     policy=policy, denials=len([ln for ln in policy.splitlines() if ln.strip()]),
-                    extra=review_extra(job))
+                    **publish_context(job, files["report"] or ""))
 
-    def review_extra(job: runs_mod.Job) -> dict[str, Any]:
-        """Hook for the apply/push/PR panel (T16)."""
-        hook = getattr(app.state, "review_extra", None)
-        return dict(hook(job)) if hook else {}
+    # -- publish: apply, push, open PR (guards live in publish.py) -------------------------------------------------
+
+    pub_states: dict[str, publish.PublishState] = {}
+
+    def publishable(job_id: str) -> tuple[runs_mod.Job, Path, publish.PublishState]:
+        job = job_or_404(job_id)
+        if job.mode != "live" or job.repo_id is None:
+            raise HTTPException(400, "Replays are demonstrations; there is nothing to publish.")
+        if job.status != "ok":
+            raise HTTPException(400, "Only a finished, successful run can be published.")
+        repo = repo_or_404(job.repo_id)
+        return job, Path(repo.path), pub_states.setdefault(job.id, publish.PublishState())
+
+    def publish_context(job: runs_mod.Job, report: str) -> dict[str, Any]:
+        if job.mode != "live" or job.repo_id is None or registry.get(job.repo_id) is None:
+            return {"pub": None}
+        root = Path(registry.get(job.repo_id).path)  # type: ignore[union-attr]
+        pub = pub_states.get(job.id, publish.PublishState())
+        ctx: dict[str, Any] = {"pub": pub, "repo_path": str(root)}
+        try:
+            ctx["remote"] = publish.remote_url(root)
+        except publish.PublishError:
+            ctx["remote"] = "(no origin remote)"
+        if pub.branch and not pub.pushed:
+            ctx["commits"] = publish.outgoing(root, pub.branch)
+        if pub.pushed and not pub.pr_url:
+            ctx["pr_title"] = f"docs: docforge {job.task} ({job.id})"
+            ctx["pr_base"] = publish.default_base_branch(root)
+            ctx["pr_body"] = report.split("\n---\n")[0].strip()
+        return ctx
+
+    def publish_error(exc: publish.PublishError) -> JSONResponse:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    @app.post("/api/runs/{job_id}/apply", dependencies=[Depends(action)])
+    def apply_run(job_id: str) -> JSONResponse:
+        job, root, pub = publishable(job_id)
+        try:
+            publish.apply(root, job.out_dir / "docforge.patch", pub)
+        except publish.PublishError as exc:
+            return publish_error(exc)
+        return JSONResponse({"message": f"Committed {pub.commit} on {pub.branch}"})
+
+    @app.post("/api/runs/{job_id}/push", dependencies=[Depends(action)])
+    def push_run(job_id: str) -> JSONResponse:
+        _, root, pub = publishable(job_id)
+        try:
+            publish.push(root, pub)
+        except publish.PublishError as exc:
+            return publish_error(exc)
+        return JSONResponse({"message": f"Pushed {pub.branch}"})
+
+    @app.post("/api/runs/{job_id}/pr", dependencies=[Depends(action)])
+    async def pr_run(request: Request, job_id: str) -> JSONResponse:
+        _, root, pub = publishable(job_id)
+        body = await request.json()
+        try:
+            publish.open_pr(root, pub, str(body.get("title", "")), str(body.get("body", "")),
+                            str(body.get("base", "")))
+        except publish.PublishError as exc:
+            return publish_error(exc)
+        return JSONResponse({"message": "Pull request opened", "url": pub.pr_url})
 
     return app

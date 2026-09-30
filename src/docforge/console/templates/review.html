@@ -20,8 +20,8 @@
   <h3>No patch to apply</h3>
   <p>The run {{ 'failed' if job.status == 'failed' else 'finished without changes' }}.{% if partial %} Documents it finished before stopping are saved as <code>docforge.partial.patch</code> for manual review.{% endif %} See the log for details.</p>
 </div>
-{% else %}
-{% include "review_actions.html" ignore missing %}
+{% elif pub is not none %}
+{% include "review_actions.html" %}
 {% endif %}
 
 <section class="grid2">

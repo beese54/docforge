@@ -1,0 +1,31 @@
+{# Apply -> Push -> Open PR. Each step appears only after the previous one succeeded. #}
+<section class="card gate">
+  <h2>Publish this change</h2>
+  {% if not pub.branch %}
+    <p>Step 1 of 3. <b>Apply</b> runs <code>docforge apply</code>: it re-checks that the patch touches only <code>README.md</code>, <code>CHANGELOG.md</code> and <code>docs/</code>, then commits it on a new branch. Nothing leaves your machine.</p>
+    <div class="actions"><button class="gate" data-action="/api/runs/{{ job.id }}/apply" data-reload data-confirm="Apply this patch as a new docforge/* branch in {{ repo_path }}? Your current branch will switch to it.">Apply patch</button></div>
+  {% elif not pub.pushed %}
+    <p>Step 2 of 3. Committed <span class="mono">{{ pub.commit }}</span> on <span class="mono">{{ pub.branch }}</span>. Check what will be sent before pushing:</p>
+    <div class="table-wrap"><table>
+      <tr><th>Remote</th><td class="mono">origin · {{ remote }}</td></tr>
+      <tr><th>Branch</th><td class="mono">{{ pub.branch }} (new; never main/master; no force)</td></tr>
+      <tr><th>Commits</th><td class="mono">{% for c in commits %}{{ c }}<br>{% endfor %}</td></tr>
+      <tr><th>Files</th><td class="mono">{{ pub.files|join(', ') }}</td></tr>
+    </table></div>
+    <div class="actions"><button class="gate" data-action="/api/runs/{{ job.id }}/push" data-reload data-confirm="Push {{ pub.branch }} to {{ remote }} using your GitHub login?">Push branch</button></div>
+  {% elif not pub.pr_url %}
+    <p>Step 3 of 3. <span class="mono">{{ pub.branch }}</span> is on GitHub. Edit the pull request if you like, then open it.</p>
+    <form class="grid" data-action="/api/runs/{{ job.id }}/pr" data-reload data-json='{"title": "#pr-title", "base": "#pr-base", "body": "#pr-body"}' data-confirm="Open this pull request on {{ remote }}?">
+      <label class="label" for="pr-title">Title</label>
+      <input id="pr-title" value="{{ pr_title }}" required>
+      <label class="label" for="pr-base">Into branch</label>
+      <input id="pr-base" value="{{ pr_base }}">
+      <label class="label" for="pr-body">Description (from the agent's report)</label>
+      <textarea id="pr-body" rows="10">{{ pr_body }}</textarea>
+      <div class="actions"><button type="submit" class="gate">Open pull request</button></div>
+    </form>
+  {% else %}
+    <p><span class="pill pass">Pull request open</span> <a href="{{ pub.pr_url }}" target="_blank" rel="noopener">{{ pub.pr_url }}</a></p>
+    <p class="sub">Review and merge it on GitHub. The console never merges.</p>
+  {% endif %}
+</section>

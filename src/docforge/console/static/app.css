@@ -54,6 +54,7 @@ p { margin: 0; max-width: 72ch; }
 .empty { background: var(--panel); border: 1px dashed var(--rule); padding: 28px; display: grid; gap: 10px; }
 
 form.inline { display: flex; gap: 8px; flex-wrap: wrap; }
+form.grid { display: grid; gap: 8px; }
 input, select, textarea { font: inherit; color: inherit; background: var(--panel); border: 1.5px solid var(--rule); padding: 7px 10px; min-width: 0; }
 input:focus, select:focus, textarea:focus { border-color: var(--sandbox); outline: none; }
 #repo-path { width: 320px; max-width: 100%; }
