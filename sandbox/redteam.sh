@@ -76,8 +76,15 @@ if [ "$AGENT_ONLY" -eq 0 ]; then
   sx "$BUILD" 'curl -sS -m 10 -o /dev/null https://example.com' >/dev/null
   [ $? -ne 0 ] && r=PASS || r=FAIL
   record 5.4 "build sandbox has no egress" "$r" ""
-  openshell sandbox upload "$BUILD" "$HERE/warmup" /sandbox/warmup >/dev/null
-  built=$(timeout 300 openshell sandbox exec --name "$BUILD" -- sh -c 'cd /sandbox/warmup && git init -q \
+  # Uploads straight from a Windows drive (/mnt/c) arrive as all-zero bytes (sparse-file detection on drvfs),
+  # so stage the fixture on the Linux filesystem first. The directory lands under /sandbox by name.
+  STAGE=$(mktemp -d) && cp -r "$HERE/warmup" "$STAGE/warmup"
+  openshell sandbox upload "$BUILD" "$STAGE/warmup" /sandbox </dev/null >/dev/null; rm -rf "$STAGE"
+  # OpenShell exec sessions do not inherit the image ENV (HOME becomes /sandbox), so point the tools at the
+  # caches baked into the image explicitly; otherwise tectonic tries the (blocked) network.
+  built=$(timeout 300 openshell sandbox exec --name "$BUILD" --env XDG_CACHE_HOME=/opt/cache \
+    --env PUPPETEER_CACHE_DIR=/opt/cache/puppeteer --env DOCFORGE_PUPPETEER_CONFIG=/opt/docforge/puppeteer.json \
+    -- sh -c 'cd /sandbox/warmup && git init -q \
     && git -c user.name=r -c user.email=r@r add -A && git -c user.name=r -c user.email=r@r commit -qm r \
     && docforge build --strict && echo BUILD_OK' </dev/null 2>&1)
   echo "$built" | grep -q BUILD_OK && r=PASS || r=FAIL

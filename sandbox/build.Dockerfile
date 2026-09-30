@@ -34,7 +34,8 @@ RUN V=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c "import json,
 COPY dist/docforge-*.whl /tmp/
 RUN python3 -m venv /opt/docforge/venv && /opt/docforge/venv/bin/pip install --no-cache-dir /tmp/docforge-*.whl \
     && rm /tmp/docforge-*.whl \
-    && printf '{"args": ["--no-sandbox"]}\n' > /opt/docforge/puppeteer.json
+    && printf '{"args": ["--no-sandbox", "--no-zygote", "--disable-dev-shm-usage"]}\n' > /opt/docforge/puppeteer.json
+# --no-zygote: Chromium's zygote creates a user namespace, which OpenShell's seccomp filter (rightly) forbids.
 
 # Warm every cache offline builds need: render a fixture manual once (LaTeX packages, fonts, Chromium).
 COPY sandbox/warmup /opt/docforge/warmup
