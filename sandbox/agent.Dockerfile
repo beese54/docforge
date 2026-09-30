@@ -1,5 +1,5 @@
 # docforge agent sandbox image. Build from the repo root:
-#   uv build --wheel && docker build -f sandbox/agent.Dockerfile -t docforge-agent:0.1.0 .
+#   sandbox/build-images.sh   (tags docforge-agent:<version from pyproject.toml>)
 # Egress is decided by OpenShell policy (sandbox/agent-policy.yaml), not by this image. The API key is never
 # baked in: the attached `anthropic` provider supplies a placeholder that OpenShell swaps at egress.
 FROM python:3.12-slim

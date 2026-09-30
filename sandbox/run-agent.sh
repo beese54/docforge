@@ -29,7 +29,7 @@ openshell sandbox create --name "$NAME" --from "docforge-agent:$VERSION" \
 # destination by name: in -> /sandbox/in, out -> /sandbox/out.
 REPO_IN="/sandbox/$(basename "$REPO")"
 mkdir -p "$STAGE/in"
-tar -C "$(dirname "$REPO")" --exclude=node_modules --exclude=documentation/build \
+tar -C "$(dirname "$REPO")" --exclude=node_modules --exclude=documentation/build --exclude=dist --exclude=.venv \
   -cf "$STAGE/in/repo.tar" "$(basename "$REPO")"
 openshell sandbox upload "$NAME" "$STAGE/in" /sandbox </dev/null
 openshell sandbox upload "$NAME" "$STAGE/out" /sandbox </dev/null

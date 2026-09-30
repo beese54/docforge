@@ -1,6 +1,6 @@
 # docforge PDF build image: pandoc + tectonic + mermaid-cli, with every download done at image build time so
 # `docforge build` runs with NO network (sandbox/build-policy.yaml grants none). Build from the repo root:
-#   uv build --wheel && docker build -f sandbox/build.Dockerfile -t docforge-build:0.1.0 .
+#   sandbox/build-images.sh   (tags docforge-build:<version from pyproject.toml>)
 FROM ubuntu:24.04
 
 ARG NODE_MAJOR=22
