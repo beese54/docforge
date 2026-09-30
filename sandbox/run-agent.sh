@@ -38,7 +38,7 @@ openshell sandbox exec --name "$NAME" -- sh -c 'tar -xf /sandbox/in/repo.tar -C 
 
 set +e
 openshell sandbox exec --name "$NAME" --workdir "$REPO_IN" \
-  --env DOCFORGE_HOME=/sandbox/out/home --env GIT_OPTIONAL_LOCKS=0 \
+  --env DOCFORGE_HOME=/sandbox/out/home --env GIT_OPTIONAL_LOCKS=0 --env DOCFORGE_PROGRESS=1 \
   -- docforge agent "$TASK" "$@" --out /sandbox/out </dev/null  # exec waits for stdin EOF
 status=$?
 set -e

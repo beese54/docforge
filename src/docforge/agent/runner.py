@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -57,6 +58,13 @@ def _describe(name: str, args: dict[str, Any]) -> str:
     return ""
 
 
+def _log(trace: list[str], line: str) -> None:
+    """Record a trace line; with DOCFORGE_PROGRESS set, also stream it to stderr (the console shows it live)."""
+    trace.append(line)
+    if os.environ.get("DOCFORGE_PROGRESS"):
+        print(line, file=sys.stderr, flush=True)
+
+
 def run(
     client: Any,  # anthropic.Anthropic, or a test fake exposing messages.stream / messages.count_tokens
     tools: ToolLayer,
@@ -93,13 +101,13 @@ def run(
                     except (anthropic.APIConnectionError, httpx2.TransportError) as exc:
                         # A dropped stream is safe to retry: no tool has run for this turn yet.
                         charged = guard.charge_worst_case(counted.input_tokens, max_tokens, type(exc).__name__)
-                        trace.append(f"turn {turns:3d}  stream interrupted ({type(exc).__name__}), attempt "
+                        _log(trace, f"turn {turns:3d}  stream interrupted ({type(exc).__name__}), attempt "
                                      f"{attempt}/{STREAM_ATTEMPTS}, worst case ${charged:.4f} charged")
                         if attempt == STREAM_ATTEMPTS:
                             raise AgentError(f"stream interrupted {STREAM_ATTEMPTS} times: {exc}") from exc
                         time.sleep(RETRY_BASE_SECONDS * 2 ** (attempt - 1))
                 cost = guard.record(response.usage)
-                trace.append(f"turn {turns:3d}  ${cost:.4f}  stop={response.stop_reason}  "
+                _log(trace, f"turn {turns:3d}  ${cost:.4f}  stop={response.stop_reason}  "
                              f"out={getattr(response.usage, 'output_tokens', 0)}")
 
                 if response.stop_reason == "refusal":
@@ -121,7 +129,7 @@ def run(
                         output, is_error = tools.dispatch(block.name, args), False
                     except ToolError as exc:
                         output, is_error = str(exc), True
-                    trace.append(f"           {block.name:10} {_describe(block.name, args)}"
+                    _log(trace, f"           {block.name:10} {_describe(block.name, args)}"
                                  + ("  -> ERROR " + output[:120] if is_error else ""))
                     results.append(
                         {"type": "tool_result", "tool_use_id": block.id, "content": output, "is_error": is_error}

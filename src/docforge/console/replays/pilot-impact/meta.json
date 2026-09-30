@@ -1,0 +1,7 @@
+{
+  "title": "Impact check on markdown-visualiser",
+  "repo": "markdown-visualiser",
+  "task": "impact",
+  "detail": "Diff HEAD~3..HEAD: licence, credits, README screenshots, e2e Windows fix",
+  "recorded": "2026-09-30"
+}

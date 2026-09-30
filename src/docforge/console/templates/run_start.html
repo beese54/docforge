@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Run agent · {{ repo.name }} · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label"><a href="/">Repositories</a> / <a href="/repos/{{ repo.id }}">{{ repo.name }}</a> / Run agent</div>
+    <h1>Run the documentation agent</h1>
+  </div>
+</div>
+
+<section class="grid2">
+  <form class="card" data-action="/api/repos/{{ repo.id }}/runs" data-go
+        data-json='{"mode": "#mode", "task": "#task", "base": "#base", "title": "#adr-title", "note": "#adr-note", "replay": "#replay"}'>
+    <h2>What to run</h2>
+    <label for="mode" class="label">Mode</label>
+    <select id="mode">
+      <option value="replay" selected>Replay a recorded run (free)</option>
+      <option value="live" {{ '' if live_ok else 'disabled' }}>Live in the OpenShell sandbox (uses API credit)</option>
+    </select>
+
+    <div class="replay-only">
+      <label for="replay" class="label">Recorded run</label>
+      <select id="replay">
+        {% for r in replays %}<option value="{{ r.name }}">{{ r.title }} ({{ r.task }})</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="live-only" hidden>
+      <label for="task" class="label">Task</label>
+      <select id="task">
+        <option value="impact">impact: update docs for recent code changes</option>
+        <option value="adr">adr: draft a decision record</option>
+        <option value="bootstrap">bootstrap: first full documentation pass</option>
+      </select>
+      <label for="base" class="label">Compare against (impact)</label>
+      <input id="base" placeholder="default: merge-base with main/master">
+      <label for="adr-title" class="label">Decision title (adr)</label>
+      <input id="adr-title" placeholder="e.g. Use SQLite for the cache">
+      <label for="adr-note" class="label">Context for the agent (adr)</label>
+      <input id="adr-note" placeholder="optional">
+    </div>
+    <div class="actions"><button type="submit" class="sandbox">Start run</button></div>
+  </form>
+
+  <div class="card sandbox">
+    <h2>What happens in a live run</h2>
+    <ul>
+      <li>A fresh OpenShell sandbox gets a <b>copy</b> of this repository.</li>
+      <li>The agent can reach only api.anthropic.com. OpenShell adds your API key on the way out, so the sandbox never sees it.</li>
+      <li>It can write only <code>README.md</code>, <code>CHANGELOG.md</code> and <code>docs/</code>, and returns a patch plus a report.</li>
+      <li>Budget caps: impact ${{ '%.2f' % caps.impact }}, adr ${{ '%.2f' % caps.adr }}, bootstrap ${{ '%.2f' % caps.bootstrap }} per run; ${{ '%.2f' % monthly }} a month.</li>
+      <li>Nothing is applied until you review it.</li>
+    </ul>
+    {% if not live_ok %}<p class="err">Live runs are unavailable: {{ live_reason }}</p>{% endif %}
+  </div>
+</section>
+<script>
+  (function () {
+    const mode = document.getElementById("mode");
+    function sync() {
+      const live = mode.value === "live";
+      document.querySelectorAll(".live-only").forEach((el) => { el.hidden = !live; });
+      document.querySelectorAll(".replay-only").forEach((el) => { el.hidden = live; });
+    }
+    mode.addEventListener("change", sync);
+    sync();
+  })();
+</script>
+{% endblock %}

@@ -43,7 +43,7 @@
     if (busy) busy.disabled = true;
     try {
       const data = await post(el.dataset.action, collect(el));
-      if (el.dataset.go && data.go) { window.location.href = data.go; return; }
+      if (el.hasAttribute("data-go") && data.go) { window.location.href = data.go; return; }
       toast(data.message || "Done", "ok");
       if (el.hasAttribute("data-reload")) setTimeout(() => window.location.reload(), 400);
     } catch (err) {

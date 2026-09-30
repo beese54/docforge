@@ -11,21 +11,25 @@ Security model (local demo tool, but it can push with the user's GitHub login):
 
 from __future__ import annotations
 
+import asyncio
+import json
 import secrets
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from docforge import __version__, build
-from docforge.config import ConfigError, load
+from docforge.config import DEFAULT_MONTHLY_USD, DEFAULT_PER_RUN_USD, ConfigError, load
 from docforge.console import health, registry, views
+from docforge.console import runs as runs_mod
 
 HERE = Path(__file__).parent
 COOKIE = "docforge_session"
@@ -57,7 +61,8 @@ class HostCheck(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def create_app(state: ConsoleState) -> FastAPI:
+def create_app(state: ConsoleState, run_manager: runs_mod.RunManager | None = None) -> FastAPI:
+    run_manager = run_manager or runs_mod.RunManager()
     app = FastAPI(title="docforge Console", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(HostCheck, state=state)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -164,5 +169,104 @@ def create_app(state: ConsoleState) -> FastAPI:
     @app.get("/usage", response_class=HTMLResponse, dependencies=[Depends(session)])
     def usage_page(request: Request) -> HTMLResponse:
         return page(request, "usage.html", s=views.spend())
+
+    # -- agent runs ----------------------------------------------------------------------------------------------
+
+    def job_or_404(job_id: str) -> runs_mod.Job:
+        job = run_manager.get(job_id)
+        if job is None:
+            raise HTTPException(404, "That run is not in this console session.")
+        return job
+
+    app.state.runs = run_manager
+    app.state.job_or_404 = job_or_404
+
+    @app.get("/runs", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def runs_page(request: Request) -> HTMLResponse:
+        return page(request, "runs.html", replays=runs_mod.replays(), jobs=run_manager.recent())
+
+    @app.post("/api/replays/{name}", dependencies=[Depends(action)])
+    def start_replay(name: str) -> JSONResponse:
+        try:
+            job = run_manager.start_replay(name)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        return JSONResponse({"go": f"/runs/{job.id}"})
+
+    @app.get("/repos/{rid}/run", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def run_start_page(request: Request, rid: str) -> HTMLResponse:
+        repo = repo_or_404(rid)
+        root = Path(repo.path)
+        try:
+            cfg = load(root)
+            caps, monthly, reason = cfg.budget.per_run_usd, cfg.budget.monthly_usd, ""
+        except ConfigError as exc:
+            caps, monthly, reason = dict(DEFAULT_PER_RUN_USD), DEFAULT_MONTHLY_USD, f"docforge.toml: {exc}"
+        if run_manager.sandbox_dir is None:
+            reason = "sandbox/run-agent.sh was not found (run the console from the docforge checkout)"
+        return page(request, "run_start.html", repo=repo, replays=runs_mod.replays(), caps=caps, monthly=monthly,
+                    live_ok=not reason, live_reason=reason)
+
+    @app.post("/api/repos/{rid}/runs", dependencies=[Depends(action)])
+    async def start_run(request: Request, rid: str) -> JSONResponse:
+        repo = repo_or_404(rid)
+        body = await request.json()
+        if body.get("mode", "replay") == "replay":
+            return start_replay(str(body.get("replay", "")))
+        task = str(body.get("task", ""))
+        extra: list[str] = []
+        if task == "impact" and str(body.get("base", "")).strip():
+            extra += ["--base", str(body["base"]).strip()]
+        if task == "adr":
+            title = str(body.get("title", "")).strip()
+            if not title:
+                return JSONResponse({"error": "An ADR needs a decision title."}, status_code=400)
+            extra = [title] + (["--note", str(body["note"]).strip()] if str(body.get("note", "")).strip() else [])
+        try:
+            job = run_manager.start_live(rid, Path(repo.path), task, extra, f"{task} on {repo.name}")
+        except runs_mod.BusyError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=409)
+        except (ValueError, FileNotFoundError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"go": f"/runs/{job.id}"})
+
+    @app.get("/runs/{job_id}", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def run_page(request: Request, job_id: str) -> HTMLResponse:
+        return page(request, "run.html", job=job_or_404(job_id))
+
+    @app.get("/api/runs/{job_id}/stream", dependencies=[Depends(session)])
+    async def run_stream(job_id: str) -> StreamingResponse:
+        job = job_or_404(job_id)
+
+        async def events() -> AsyncIterator[str]:
+            sent = 0
+            while True:
+                while sent < len(job.lines):
+                    yield f"event: line\ndata: {json.dumps(job.lines[sent])}\n\n"
+                    sent += 1
+                if job.status != "running" and sent >= len(job.lines):
+                    yield f"event: done\ndata: {json.dumps(job.summary())}\n\n"
+                    return
+                await asyncio.sleep(0.15)
+
+        return StreamingResponse(events(), media_type="text/event-stream", headers={"cache-control": "no-store"})
+
+    @app.get("/runs/{job_id}/review", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def review_page(request: Request, job_id: str) -> HTMLResponse:
+        job = job_or_404(job_id)
+        files = runs_mod.review_files(job.out_dir)
+        patch = files["patch"] or ""
+        policy = files["policy"] or ""
+        return page(request, "review.html", job=job, patch=bool(files["patch"]), partial=bool(files["partial"]),
+                    diff=views.diff_lines(patch or files["partial"] or ""),
+                    files=views.patch_files(patch or files["partial"] or ""),
+                    report_html=views.render_report(files["report"] or "_No report was written._"),
+                    policy=policy, denials=len([ln for ln in policy.splitlines() if ln.strip()]),
+                    extra=review_extra(job))
+
+    def review_extra(job: runs_mod.Job) -> dict[str, Any]:
+        """Hook for the apply/push/PR panel (T16)."""
+        hook = getattr(app.state, "review_extra", None)
+        return dict(hook(job)) if hook else {}
 
     return app

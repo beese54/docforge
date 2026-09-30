@@ -1,0 +1,1237 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,7 +7,11 @@
+ 
+ ### Added
+ 
++- Bootstrapped the documentation set: README, the 12 `docs/*.md` files and ADRs 001–007. <!-- sources: docs/adr/, docforge.toml -->
++
+ ### Changed
++
++- README rewritten from a two-line stub into the eight required sections; no deep material existed to move. <!-- sources: README.md -->
+ 
+ ### Security
+ 
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,8 +1,72 @@
+ # docforge
+ 
+-Docs-as-code for AI-assisted projects. See `specification.json` and `definition_of_done.md`.
++## Purpose
++
++docforge is a command-line tool for keeping engineering documentation in a repository accurate ("docs-as-code"). It scaffolds a fixed documentation set, checks it deterministically (structure, sections, links, ADRs, drift between code and docs), runs an AI agent inside a sandbox to *propose* documentation patches, and builds the Markdown into a versioned PDF manual.
++
++Design background lives in `specification.json` and `definition_of_done.md` (not reviewed while writing these docs: uncertain — verify with developer).
++
++<!-- sources: pyproject.toml, src/docforge/cli.py, README.md (previous version) -->
++
++## Technologies
++
++- Python 3.12+, [Typer](https://typer.tiangolo.com/) for the CLI, the `anthropic` SDK for the agent, built with hatchling and managed with `uv`.
++- External tools for the PDF manual: pandoc, tectonic (LaTeX), mermaid-cli (`mmdc`).
++- OpenShell and Docker for the agent and build sandboxes.
++- Dev tooling declared: pytest, ruff, mypy (strict), jsonschema.
++
++See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
++
++<!-- sources: pyproject.toml, init.sh, sandbox/build.Dockerfile -->
++
++## Architecture at a Glance
++
++Commands: `init`, `check`, `build`, `agent {impact,adr,bootstrap}`, `apply`, `usage`. The agent can only read the repository and *stage* Markdown writes; a human reviews `docforge.patch` and `docforge apply` commits it to a new branch. CI runs only the deterministic `check`; the model is never called in CI. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
++
++<!-- sources: src/docforge/cli.py, .github/workflows/docforge.yml -->
++
++## Prerequisites
++
++Run `./init.sh` (Linux/WSL). It reports, and does not install, missing: python3 3.12+, uv, git, pandoc, tectonic, Node >= 20, mmdc, pdftotext (poppler-utils), docker, openshell. It then runs `uv sync`.
++
++<!-- sources: init.sh -->
++
++## Local Development
+ 
+ ```bash
+-./init.sh          # check prerequisites + create venv
+-./dev.sh pytest -q # run tests
++./init.sh            # check prerequisites + create the venv (default ~/.venvs/docforge)
++./dev.sh docforge check      # run any command in the dev environment
++./dev.sh ruff check src tests
++./dev.sh mypy src
+ ```
++
++`dev.sh` is `uv run` with `UV_PROJECT_ENVIRONMENT` pointed at the venv outside the repo. Model calls need `ANTHROPIC_API_KEY` (or the OpenShell provider); see [docs/MAINTENANCE.md](docs/MAINTENANCE.md).
++
++<!-- sources: dev.sh, init.sh, pyproject.toml -->
++
++## Running Tests
++
++```bash
++./dev.sh pytest -q
++```
++
++See [docs/TESTING.md](docs/TESTING.md).
++
++<!-- sources: dev.sh, pyproject.toml, tests/conftest.py -->
++
++## Deployment
++
++docforge is not a deployed service. It is installed as a Python wheel; CI installs it with `uvx` from a git URL, and the sandbox images are built by `sandbox/build-images.sh`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
++
++<!-- sources: .github/workflows/docforge.yml, sandbox/build-images.sh -->
++
++## Documentation
++
++- [Architecture](docs/ARCHITECTURE.md), [Design](docs/DESIGN.md), [How it works](docs/HOW_IT_WORKS.md)
++- [Data model](docs/DATA_MODEL.md), [API / CLI](docs/API.md), [Security](docs/SECURITY.md)
++- [Deployment](docs/DEPLOYMENT.md), [Testing](docs/TESTING.md), [Operations](docs/OPERATIONS.md), [Maintenance](docs/MAINTENANCE.md)
++- [Troubleshooting](docs/TROUBLESHOOTING.md), [Dependencies](docs/DEPENDENCIES.md)
++- Decisions: [docs/adr/](docs/adr/001-human-reviewed-patches-only.md)
++- [CHANGELOG](CHANGELOG.md)
++
++<!-- sources: docforge.toml -->
+diff --git a/docs/API.md b/docs/API.md
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -4,23 +4,46 @@
+ 
+ ## Overview
+ 
+-> uncertain — verify with developer
++The interface is the `docforge` CLI (Typer). There is no HTTP API. `--path` (repository root, default `.`) applies to all commands except `usage`. `docforge --version` prints the version.
++
++<!-- sources: src/docforge/cli.py -->
+ 
+ ## Endpoints
+ 
+-> uncertain — verify with developer
++### `docforge init`
++
++- Purpose: create missing docs, config, CI workflow, ADR template.
++- Side effects: writes files (never overwrites); may append to `.gitignore`.
++
++### `docforge check [--strict] [--format text|json] [--base REF]`
++
++- Purpose: run deterministic checks and drift detection.
++- Side effects: none. Exit 0/1 (errors)/2 (bad config). Default base: merge-base with `origin/main`, `origin/master`, `main` or `master`.
++
++### `docforge build [--out DIR] [--format pdf|tex] [--strict]`
++
++- Purpose: build the PDF (or LaTeX) manual into `documentation/build`.
++- Side effects: writes output and a temp dir. Exit 2 for environment problems, 1 for content.
++
++### `docforge agent impact [--base REF] [--out DIR]`, `agent adr TITLE [--note TEXT]`, `agent bootstrap`
++
++- Purpose: run the model to propose doc changes.
++- Authentication: Anthropic credentials from the environment.
++- Side effects: paid API calls; appends to the usage ledger; writes outputs to `documentation/build/agent` (or `--out`). Never modifies tracked docs. Requires a git repository. Exit 3 on agent failure or missing credentials.
++
++### `docforge apply PATCH [--branch NAME]`
++
++- Purpose: apply a reviewed patch.
++- Side effects: creates a branch (default `docforge/<task>-<sha>`), stages and commits. Never pushes. Leaves the new branch checked out.
++
++### `docforge usage [--last]`
++
++- Purpose: show model spend from the ledger. Side effects: none.
++
++<!-- sources: src/docforge/cli.py, src/docforge/git.py, src/docforge/apply.py -->
+ 
+ ## Errors
+ 
+-### <METHOD> <path>
++Exit codes: 0 success; 1 check errors, refused/failed apply, or build content failure; 2 configuration, environment, bad base ref or non-git repository; 3 agent failure or missing credentials. Messages go to stderr prefixed `error:`. Note `check` returns 1 only for error-severity findings; warnings do not fail it unless `--strict` promotes them.
+ 
+-- Purpose:
+-- Authentication:
+-- Parameters:
+-- Request example:
+-- Response example:
+-- Error codes:
+-- Dependencies:
+-- Side effects:
+-
+-> uncertain — verify with developer
++<!-- sources: src/docforge/cli.py, src/docforge/build.py, src/docforge/checks.py -->
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -4,24 +4,65 @@
+ 
+ ## Overview
+ 
+-> uncertain — verify with developer
++docforge is a single Python package (`src/docforge`) exposing one CLI. It has no server, database or long-running process. It works on a target git repository (its own, for self-documentation) and on a small set of files there: `docforge.toml`, `docs/`, `README.md`, `CHANGELOG.md`, `documentation/`.
++
++<!-- sources: pyproject.toml, src/docforge/cli.py, src/docforge/config.py -->
+ 
+ ## Components
+ 
+-> uncertain — verify with developer
++| Component | Role |
++|---|---|
++| `cli.py` | Typer wiring only; one function per command. |
++| `config.py` | Loads and strictly validates `docforge.toml`; defines the agent write allowlist `AGENT_WRITABLE`. |
++| `doctypes.py` | Table of the documentation set and required H2 sections. Used by `init` (skeletons), `check` and the agent system prompt. |
++| `init.py` | Scaffolds missing files and guesses the impact map from the repository layout. |
++| `checks.py`, `markdown.py`, `findings.py` | Deterministic checks (structure, sections, links, ADRs, uncertain markers). `markdown.py` and `findings.py` were not read in detail. |
++| `drift.py`, `git.py`, `globs.py` | Compares code changes against the impact map; thin git CLI wrappers. |
++| `agent/` | Model loop (`runner.py`), tool policy (`policy.py`), spend limits (`budget.py`), prompts, patch generation (`patch.py`). |
++| `apply.py` | Applies a reviewed patch on a new branch, re-checking paths. |
++| `build.py`, `templates/docforge.lua` | Markdown to pandoc to LaTeX to PDF; Lua filter renders Mermaid and rewrites cross-file links. |
++| `sandbox/` | OpenShell policies, Docker images and scripts for running the agent and the PDF build in isolation. |
++
++<!-- sources: src/docforge/*.py, src/docforge/agent/*.py, src/docforge/templates/docforge.lua, sandbox/ -->
+ 
+ ## Information Flow
+ 
+-> uncertain — verify with developer
++```mermaid
++flowchart LR
++  Dev[Engineer] -->|run-agent.sh| SB[Agent sandbox]
++  SB -->|tools: read/grep/diff| Repo[(Repo copy)]
++  SB -->|HTTPS| API[api.anthropic.com]
++  SB -->|docforge.patch, report.md| Out[documentation/build/agent]
++  Out -->|human review| Apply[docforge apply]
++  Apply -->|new branch + commit| Git[(Host repo)]
++  CI[CI] -->|docforge check --strict| Git
++```
++
++1. The agent only touches the repository through six tools (`list_files`, `read_file`, `grep`, `git_diff`, `write_doc`, `finish`). Writes are held in memory.
++2. At the end, staged writes become a unified diff (`docforge.patch`) plus `report.md`, `trace.log`, `policy.log`, `run.json`.
++3. A human reviews, then `docforge apply` checks the paths again and commits on a new branch. Nothing is pushed.
++
++Workflow detail: [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
++
++<!-- sources: src/docforge/agent/runner.py, src/docforge/agent/policy.py, src/docforge/agent/patch.py, src/docforge/apply.py, sandbox/run-agent.sh -->
+ 
+ ## External Systems
+ 
+-> uncertain — verify with developer
++- Anthropic API (`api.anthropic.com:443`), model `claude-sonnet-5-5`, used only by `docforge agent`.
++- git CLI, pandoc, tectonic, mermaid-cli (`mmdc`).
++- OpenShell (sandbox runtime) and Docker.
++- GitHub Actions (CI). The workflow installs docforge from `github.com/beese54/docforge`; the repository's own status note says that repository did not yet exist (2026-09-30).
++
++<!-- sources: src/docforge/agent/budget.py, .github/workflows/docforge.yml, STATUS-2026-09-30.md, sandbox/anthropic-profile.yaml -->
+ 
+ ## Infrastructure
+ 
+-> uncertain — verify with developer
++No hosted infrastructure. Local state is the usage ledger `~/.docforge/usage.jsonl` (override with `DOCFORGE_HOME`) and build output under `documentation/build/` (git-ignored by `init`). Two Docker images, `docforge-agent:<version>` and `docforge-build:<version>`, run under OpenShell.
++
++<!-- sources: src/docforge/agent/budget.py, src/docforge/init.py, sandbox/build-images.sh -->
+ 
+ ## Deployment Architecture
+ 
+-> uncertain — verify with developer
++See [DEPLOYMENT.md](DEPLOYMENT.md). In short: a wheel built with `uv build`; the agent image installs it with pip; CI uses `uvx --from <git url>`.
++
++<!-- sources: sandbox/build-images.sh, sandbox/agent.Dockerfile, .github/workflows/docforge.yml -->
+diff --git a/docs/DATA_MODEL.md b/docs/DATA_MODEL.md
+--- a/docs/DATA_MODEL.md
++++ b/docs/DATA_MODEL.md
+@@ -4,28 +4,49 @@
+ 
+ ## Overview
+ 
+-> uncertain — verify with developer
++docforge has no database. Its persistent data is a JSON-lines usage ledger and the files it reads or produces in the target repository.
++
++<!-- sources: src/docforge/agent/budget.py -->
+ 
+ ## Entities
+ 
+-> uncertain — verify with developer
++- **UsageRecord** (one JSON object per line in `usage.jsonl`): `ts`, `run_id`, `command`, `model`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_usd`, `note`.
++- **Config** (`docforge.toml`): project name/title, required docs, impact rules (`category`, `globs`, `docs`, `adr_worthy`), manual chapters, budget, uncertain limit.
++- **Finding**: rule, severity, file, message, optional line (in-memory).
++- **Run outputs**: `docforge.patch`, `docforge.partial.patch`, `report.md`, `policy.log`, `trace.log`, `run.json` (`run_id`, `command`, `status`, `cost_usd`, `turns`, `files`).
++- **ADR files**: `docs/adr/NNN-kebab-title.md`.
++
++<!-- sources: src/docforge/agent/budget.py, src/docforge/config.py, src/docforge/agent/runner.py, src/docforge/checks.py -->
+ 
+ ## Relationships
+ 
+-> uncertain — verify with developer
++Records sharing a `run_id` belong to one agent run; `run.json` sits beside the patch and is read by `apply` to name the branch. Impact rules map file globs to doc paths.
++
++<!-- sources: src/docforge/apply.py, src/docforge/drift.py -->
+ 
+ ## Constraints and Indexes
+ 
+-> uncertain — verify with developer
++Config: unknown keys rejected; category names unique; budgets positive numbers; `max_markers` non-negative integer. ADRs: 3-digit number, no duplicates, no gaps, valid status. No indexes.
++
++<!-- sources: src/docforge/config.py, src/docforge/checks.py -->
+ 
+ ## Ownership and Retention
+ 
+-> uncertain — verify with developer
++The ledger is per-user, at `$DOCFORGE_HOME` or `~/.docforge`, append-only; no rotation or retention policy exists in code. Run outputs default to `documentation/build/agent` (git-ignored via `documentation/build/`).
++
++<!-- sources: src/docforge/agent/budget.py, src/docforge/init.py, src/docforge/cli.py -->
+ 
+ ## Migrations
+ 
+-> uncertain — verify with developer
++None. The ledger format has no version field; a changed `UsageRecord` would break reading older lines (`UsageRecord(**json)`), so add fields with defaults.
++
++<!-- sources: src/docforge/agent/budget.py -->
+ 
+ ## Business Rules
+ 
+-> uncertain — verify with developer
++- Monthly spend is the sum of ledger records whose timestamp starts with the current `YYYY-MM`.
++- Allowance = min(per-run cap − run spent, monthly cap − month spent before run − run spent).
++- Default caps: impact $0.50, adr $0.30, bootstrap $3.00 per run; $10.00 per month.
++- Interrupted calls are recorded at worst-case cost.
++
++<!-- sources: src/docforge/agent/budget.py, src/docforge/config.py -->
+diff --git a/docs/DEPENDENCIES.md b/docs/DEPENDENCIES.md
+--- a/docs/DEPENDENCIES.md
++++ b/docs/DEPENDENCIES.md
+@@ -4,13 +4,37 @@
+ 
+ ## Critical Dependencies
+ 
+-### <dependency>
++### Anthropic API and `anthropic` SDK
+ 
+-- Purpose:
+-- Current version:
+-- Why it is used:
+-- Replacement difficulty:
+-- Upgrade considerations:
+-- Known limitations:
++- Purpose: model calls for the agent.
++- Current version: SDK unpinned in `pyproject.toml`; resolved version is in `uv.lock` (not read). Model `claude-sonnet-5-5`, hard-coded.
++- Why it is used: the only model provider implemented.
++- Replacement difficulty: high. The runner uses streaming, `count_tokens`, adaptive thinking, `output_config`, prompt caching and strict tool schemas; prices are hard-coded per model in `budget.py`.
++- Upgrade considerations: the runner imports `httpx2` (the SDK's HTTP client) for error handling and catches `TypeError` for missing credentials; both depend on SDK internals.
++- Known limitations: costs come from a price table copied on 2026-09-25 (per its comment); it may go stale.
+ 
+-> uncertain — verify with developer
++### OpenShell
++
++- Purpose: sandbox runtime enforcing filesystem and egress policy for the agent and the build.
++- Current version: 0.1.x (per `anthropic-profile.yaml`, which notes it ships no profiles).
++- Replacement difficulty: high; policy files and `run-agent.sh` use its CLI. See [ADR-003](adr/003-openshell-sandboxes.md).
++- Known limitations: needs a Docker engine reachable by its gateway; landlock is `best_effort`.
++
++### pandoc, tectonic, mermaid-cli
++
++- Purpose: PDF manual. pandoc 3.1.3 from Ubuntu 24.04 in the build image; tectonic unpinned; mermaid-cli 11; Node 22.
++- Replacement difficulty: medium; the Lua filter is pandoc-specific. See [ADR-006](adr/006-pandoc-tectonic-manual-pipeline.md).
++
++### Typer
++
++- Purpose: CLI framework (`typer>=0.12`). Low-to-medium replacement effort; only `cli.py` uses it.
++
++### git CLI
++
++- Purpose: drift detection, diffing, apply and versioning, all through `git.py`. Assumed installed; a missing git raises `GitError`.
++
++### uv / hatchling
++
++- Purpose: environment and build (`uv sync`, `uv build --wheel`); CI uses `uvx`.
++
++<!-- sources: pyproject.toml, src/docforge/agent/budget.py, src/docforge/agent/runner.py, sandbox/anthropic-profile.yaml, sandbox/build.Dockerfile, src/docforge/git.py, init.sh -->
+diff --git a/docs/DEPLOYMENT.md b/docs/DEPLOYMENT.md
+--- a/docs/DEPLOYMENT.md
++++ b/docs/DEPLOYMENT.md
+@@ -4,20 +4,39 @@
+ 
+ ## Environments
+ 
+-> uncertain — verify with developer
++- **Developer machine** (Linux/WSL): venv managed by `uv`, default `~/.venvs/docforge` ([README](../README.md)).
++- **CI**: GitHub Actions on `ubuntu-24.04`, workflow `docforge`.
++- **Sandboxes**: OpenShell sandboxes from two Docker images (agent, build).
++- Staging/production: not applicable; there is no hosted service (uncertain — verify with developer whether any distribution channel such as PyPI is planned).
++
++<!-- sources: init.sh, .github/workflows/docforge.yml, sandbox/build-images.sh -->
+ 
+ ## Build
+ 
+-> uncertain — verify with developer
++- Wheel: `uv build --wheel` (hatchling; package `src/docforge`). Version is in `pyproject.toml` (0.1.0).
++- Images: `sandbox/build-images.sh` removes `dist/`, builds the wheel, then builds `docforge-agent:<version>` (python:3.12-slim, git, curl, the wheel, non-root `sandbox` user) and `docforge-build:<version>` (ubuntu:24.04, pandoc, tectonic, Node 22, mermaid-cli 11, headless Chrome, and a warm-up build of `sandbox/warmup` so builds work offline).
++- The build image downloads tectonic via an install script from `drop-sh.fullyjustified.net` at build time, without a checksum (Node is checksum-verified).
++
++<!-- sources: pyproject.toml, sandbox/build-images.sh, sandbox/agent.Dockerfile, sandbox/build.Dockerfile -->
+ 
+ ## Deploy
+ 
+-> uncertain — verify with developer
++There is nothing to deploy to a server.
++
++- **CI check:** on pull requests and pushes to `main`/`master`, `uvx --from "$DOCFORGE_SPEC" docforge check --strict --base <ref>`. `DOCFORGE_SPEC` is `docforge @ git+https://github.com/beese54/docforge`; per the 2026-09-30 status note this repository did not exist yet, so the check cannot pass on GitHub until it does (or the variable is changed).
++- **CI manual job:** on manual dispatch or tag refs, installs pandoc, tectonic and mermaid-cli, runs `docforge build`, uploads `documentation/build/*.pdf` as artifact `manual`.
++- **Agent:** `sandbox/run-agent.sh` (needs the images, the imported `anthropic` provider profile and an OpenShell gateway). Setup of the profile: see the header of `sandbox/anthropic-profile.yaml`. `sandbox/install-native-docker.sh` installs a separate Docker engine for OpenShell (not read: uncertain — verify with developer what it changes).
++
++<!-- sources: .github/workflows/docforge.yml, STATUS-2026-09-30.md, sandbox/run-agent.sh, sandbox/anthropic-profile.yaml -->
+ 
+ ## Configuration
+ 
+-> uncertain — verify with developer
++See [DESIGN.md](DESIGN.md#configuration-strategy) for `docforge.toml`. Deployment-relevant settings: `DOCFORGE_SPEC` (CI), `DOCFORGE_HOME`, `ANTHROPIC_API_KEY` (agent), image tags derived from `pyproject.toml` version. The build sandbox needs `XDG_CACHE_HOME=/opt/cache`, `PUPPETEER_CACHE_DIR=/opt/cache/puppeteer`, `DOCFORGE_PUPPETEER_CONFIG=/opt/docforge/puppeteer.json` passed explicitly because OpenShell exec sessions do not inherit image ENV.
++
++<!-- sources: .github/workflows/docforge.yml, sandbox/build-policy.yaml, sandbox/build.Dockerfile -->
+ 
+ ## Rollback
+ 
+-> uncertain — verify with developer
++No release process is defined in the repository (uncertain — verify with developer). Practical options: pin `DOCFORGE_SPEC` to an earlier git tag or commit; rebuild images from an earlier commit (image tags equal the version, so rebuilding overwrites a tag unless the version is bumped). Doc patches applied by `docforge apply` are ordinary commits on their own branch and can be dropped by deleting the branch or reverting.
++
++<!-- sources: .github/workflows/docforge.yml, sandbox/build-images.sh, src/docforge/apply.py -->
+diff --git a/docs/DESIGN.md b/docs/DESIGN.md
+--- a/docs/DESIGN.md
++++ b/docs/DESIGN.md
+@@ -4,36 +4,66 @@
+ 
+ ## Design Principles
+ 
+-> uncertain — verify with developer
++- **The model proposes, a human disposes.** The agent never writes to disk in the repository; see [ADR-001](adr/001-human-reviewed-patches-only.md).
++- **Enforce by construction, not by prompt.** Path limits and spend caps are code, not instructions ([ADR-002](adr/002-budget-guard-and-manual-agent-loop.md)).
++- **Deterministic checks are separate from the model.** `check` never uses the network ([ADR-004](adr/004-deterministic-checks-in-ci.md)).
++- **Honesty markers.** Unverified claims are written "uncertain — verify with developer" and counted by `check`.
++- **One source of truth for the doc set.** `doctypes.py` drives scaffolding, checking and the agent prompt.
++
++<!-- sources: src/docforge/agent/policy.py, src/docforge/agent/budget.py, src/docforge/doctypes.py, src/docforge/checks.py -->
+ 
+ ## Component Boundaries
+ 
+-> uncertain — verify with developer
++- `cli.py` only wires commands; logic sits in per-command modules, imported lazily inside each command.
++- All repository access by the agent goes through `agent/policy.py:ToolLayer`. All git access goes through `git.py`.
++- `apply.py` runs on the host and does not trust the patch: it re-validates every path.
++- Sandboxes: the agent has network only to api.anthropic.com; the PDF build has none ([ADR-003](adr/003-openshell-sandboxes.md)).
++
++<!-- sources: src/docforge/cli.py, src/docforge/agent/policy.py, src/docforge/apply.py, src/docforge/git.py -->
+ 
+ ## Key Abstractions and Patterns
+ 
+-> uncertain — verify with developer
++- `Config` / `ImpactRule`: the impact map (globs to docs, optionally `adr_worthy`) ([ADR-005](adr/005-impact-map-drift-detection.md)).
++- `Finding` with severity (info/warn/error) and a `Check` = function of `Context`; `checks.run` accepts extra checks (drift is injected this way).
++- `ToolLayer`: stages writes in a dict, records denials as `PolicyEvent`s.
++- `BudgetGuard`: sizes `max_tokens` so the worst case fits the remaining allowance; interrupted streams are charged worst-case.
++- Escape hatch: a `Docs-Impact: none — <reason>` commit trailer; an empty reason is reported and ignored.
++- Build pipeline: pandoc plus a Lua filter that turns Mermaid blocks into figures and rewrites cross-file links ([ADR-006](adr/006-pandoc-tectonic-manual-pipeline.md)).
++
++<!-- sources: src/docforge/config.py, src/docforge/checks.py, src/docforge/drift.py, src/docforge/agent/policy.py, src/docforge/agent/budget.py, src/docforge/templates/docforge.lua -->
+ 
+ ## Configuration Strategy
+ 
+-> uncertain — verify with developer
++A single `docforge.toml` at the repository root. Unknown keys are errors so typos cannot silently disable a check. Sections: `[project]`, `[docs]`, `[[impact]]`, `[manual]`, `[budget]`, `[uncertain]`. The agent write allowlist (`README.md`, `CHANGELOG.md`, `docs/**`) is deliberately not configurable. Environment: `DOCFORGE_HOME` (ledger location), `ANTHROPIC_API_KEY`, `DOCFORGE_PUPPETEER_CONFIG` (Mermaid). Build defaults can be overridden by `documentation/manual.yaml` and `documentation/templates/manual-header.tex`.
++
++<!-- sources: src/docforge/config.py, src/docforge/build.py, src/docforge/agent/budget.py -->
+ 
+ ## Error Handling
+ 
+-> uncertain — verify with developer
++Each layer raises its own exception (`ConfigError`, `GitError`, `ToolError`, `AgentError`, `BudgetExceeded`, `BuildError`, `ApplyError`) which `cli.py` maps to exit codes: 2 = configuration/environment, 3 = agent failure or missing credentials, 1 = check errors, patch refused or build content failure. Tool denials go back to the model as error results rather than aborting. On any agent failure `docforge.patch` and `report.md` are deleted, `trace.log`, `policy.log`, `run.json` are kept, and finished documents are saved in `docforge.partial.patch`. Stream drops are retried 3 times with backoff.
++
++<!-- sources: src/docforge/cli.py, src/docforge/agent/runner.py, src/docforge/build.py -->
+ 
+ ## Logging
+ 
+-> uncertain — verify with developer
++There is no logging framework. Agent runs write `trace.log` (per-turn cost and tool calls), `policy.log` (denials) and `run.json` into the output directory; spend is appended to `usage.jsonl`. Other commands print to stdout/stderr.
++
++<!-- sources: src/docforge/agent/runner.py, src/docforge/agent/budget.py -->
+ 
+ ## Authentication and Authorisation
+ 
+-> uncertain — verify with developer
++Only outbound: the Anthropic SDK reads credentials from the environment; inside the sandbox a placeholder key is swapped for the real one at egress. There are no users or roles. "Authorisation" is the path policy. See [SECURITY.md](SECURITY.md).
++
++<!-- sources: src/docforge/cli.py, sandbox/anthropic-profile.yaml -->
+ 
+ ## State Management
+ 
+-> uncertain — verify with developer
++Stateless apart from the append-only usage ledger and run outputs. The monthly cap is computed from the ledger at run start, so it spans runs, including sandboxed ones (the script copies the ledger in and out).
++
++<!-- sources: src/docforge/agent/budget.py, sandbox/run-agent.sh -->
+ 
+ ## API Conventions
+ 
+-> uncertain — verify with developer
++The public interface is the CLI ([API.md](API.md)). `--path` selects the repository root; `check` supports `--format json`; `--base` selects the drift baseline.
++
++<!-- sources: src/docforge/cli.py -->
+diff --git a/docs/HOW_IT_WORKS.md b/docs/HOW_IT_WORKS.md
+--- a/docs/HOW_IT_WORKS.md
++++ b/docs/HOW_IT_WORKS.md
+@@ -1,18 +1,78 @@
+ # How It Works
+ 
+-> End-to-end workflows. For each: trigger, receiver, processing, services called, storage, async work, result, failure modes.
++> End-to-end workflows.
+ 
+ ## Workflows
+ 
+-### Workflow: <name>
++### Workflow: Scaffold (`docforge init`)
+ 
+-1. Trigger:
+-2. Received by:
+-3. Processing:
+-4. Services called:
+-5. Data stored:
+-6. Asynchronous work:
+-7. Result:
+-8. What can fail:
++1. Trigger: engineer runs `docforge init [--path .]`.
++2. Received by: `cli.init` then `init.scaffold`.
++3. Processing: builds a plan of skeleton docs (from `doctypes.py`), CHANGELOG, ADR template, manual defaults, CI workflow and `docforge.toml`. The impact map is guessed by matching candidate globs against files that exist.
++4. Services called: `git ls-files` (falls back to a directory walk).
++5. Data stored: only missing files are created (opened with mode `x`); `documentation/build/` is appended to `.gitignore`.
++6. Asynchronous work: none.
++7. Result: list of created/existing files.
++8. What can fail: nothing is overwritten; a guessed impact map may be wrong and must be reviewed.
+ 
+-> uncertain — verify with developer
++<!-- sources: src/docforge/init.py, src/docforge/cli.py -->
++
++### Workflow: Check (`docforge check`)
++
++1. Trigger: engineer or CI (`docforge check --strict --base <ref>`).
++2. Received by: `cli.check`, `checks.run` plus the drift check.
++3. Processing: required files exist; required H2 sections; internal links and anchors (case-exact); ADR naming, numbering (no gaps), title and status; count of "uncertain" markers (limit `[uncertain] max_markers`); drift. `--strict` turns soft rules and drift in `adr_worthy` categories into errors.
++4. Services called: git (`log`, `merge-base`, `diff`).
++5. Data stored: none.
++6. Asynchronous work: none.
++7. Result: findings as text or JSON; exit 1 if any error.
++8. What can fail: base ref missing (shallow clone) is an error; no base ref or not a repo is only informational; invalid `docforge.toml` exits 2.
++
++Drift: for each impact rule, if a non-overridden changed file matches its globs and none of its docs changed in the same range (or uncommitted), a finding is raised.
++
++<!-- sources: src/docforge/checks.py, src/docforge/drift.py, src/docforge/git.py, src/docforge/cli.py -->
++
++### Workflow: Agent run (`docforge agent impact|adr|bootstrap`)
++
++1. Trigger: engineer, normally via `sandbox/run-agent.sh <repo> <task>`.
++2. Received by: `cli._run_agent`, which loads config, checks git and credentials and creates a `BudgetGuard` (per-run cap by command, monthly cap).
++3. Processing: loop in `agent/runner.py`. Each turn counts input tokens, sizes `max_tokens` to the remaining budget, streams a response, records cost, executes tool calls through `ToolLayer`. Ends when the model calls `finish`, or when it stops without tools (its text becomes the report). Turn limits: impact 40, adr 20, bootstrap 120.
++4. Services called: Anthropic API (model `claude-sonnet-5-5`, adaptive thinking, effort medium).
++5. Data stored: `usage.jsonl` per call; in the output dir `docforge.patch`, `report.md`, `policy.log`, `trace.log`, `run.json` (default `documentation/build/agent`).
++6. Asynchronous work: none; streaming is synchronous.
++7. Result: a patch and report for human review. The repository is untouched.
++8. What can fail: budget exhausted, model refusal, `max_tokens` hit, turn limit, API or connection errors, missing credentials (exit 3). Denied tool calls are logged and returned to the model.
++
++<!-- sources: src/docforge/cli.py, src/docforge/agent/runner.py, src/docforge/agent/budget.py, src/docforge/agent/policy.py, sandbox/run-agent.sh -->
++
++### Workflow: Sandboxed agent run (`sandbox/run-agent.sh`)
++
++1. Trigger: engineer on the host.
++2. Processing: copies the usage ledger; creates an OpenShell sandbox from `docforge-agent:<version>` with `agent-policy.yaml` and the `anthropic` provider; uploads the repository (working tree plus `.git`) as a tar; runs `docforge agent ... --out /sandbox/out`; downloads outputs and the ledger back to `<repo>/documentation/build/agent`; deletes the sandbox on exit.
++3. Failure modes: OpenShell/Docker problems; the script propagates the agent's exit status.
++
++<!-- sources: sandbox/run-agent.sh, sandbox/agent-policy.yaml -->
++
++### Workflow: Apply (`docforge apply <patch>`)
++
++1. Trigger: engineer after reviewing `report.md` and the patch.
++2. Processing: extracts all paths in the patch; refuses anything outside `README.md`, `CHANGELOG.md`, `docs/**` `.md`; names the branch `docforge/<task>-<sha>` from `run.json` (or `--branch`); `git apply --check --index`; creates the branch, applies, commits.
++3. Result: commit on a new branch. Never pushes.
++4. What can fail: empty patch, disallowed path, existing branch, patch not applying cleanly (exit 1).
++
++<!-- sources: src/docforge/apply.py, src/docforge/cli.py -->
++
++### Workflow: Build manual (`docforge build`)
++
++1. Trigger: engineer or CI job `manual` (workflow_dispatch or tags).
++2. Processing: requires pandoc and tectonic (tectonic not needed for `--format tex`); expands `[manual] chapters` (globs sorted, `000-*` skipped); fills version (`git describe --tags --always --dirty`), date and SHA into the LaTeX header; runs pandoc with the Lua filter.
++3. Result: `documentation/build/<name>-manual-<version>.pdf`.
++4. What can fail: missing tools (exit 2), no chapters (exit 2), pandoc failure (exit 1), Mermaid render failure (warning; error with `--strict`). Without `mmdc`, diagrams remain code blocks.
++
++<!-- sources: src/docforge/build.py, src/docforge/templates/docforge.lua, .github/workflows/docforge.yml -->
++
++### Workflow: Usage report (`docforge usage`)
++
++Reads the ledger and prints spend per run, this month and total.
++
++<!-- sources: src/docforge/cli.py, src/docforge/agent/budget.py -->
+diff --git a/docs/MAINTENANCE.md b/docs/MAINTENANCE.md
+--- a/docs/MAINTENANCE.md
++++ b/docs/MAINTENANCE.md
+@@ -4,53 +4,95 @@
+ 
+ ## Starting and Stopping
+ 
+-> uncertain — verify with developer
++There are no services. Agent runs are short-lived processes; sandboxes are deleted by the script's exit trap. If a run is killed, leftover sandboxes named `dfa-<timestamp>` may remain: list and delete them with the `openshell sandbox` commands (exact list command: uncertain — verify with developer).
++
++<!-- sources: sandbox/run-agent.sh -->
+ 
+ ## Dependency Updates
+ 
+-> uncertain — verify with developer
++Python dependencies: `typer>=0.12` and `anthropic` (unpinned) in `pyproject.toml`, locked in `uv.lock`. Update with uv, then run the tests and `docforge check`. Changing `pyproject.toml`/`uv.lock` triggers the strict `dependencies` drift rule, so update [DEPENDENCIES.md](DEPENDENCIES.md) in the same change. Model name and prices are hard-coded in `agent/budget.py`; update them together when changing the model. Sandbox images pin Node major 22, mermaid-cli 11, Ubuntu 24.04 and python 3.12; tectonic is unpinned.
++
++<!-- sources: pyproject.toml, docforge.toml, src/docforge/agent/budget.py, sandbox/build.Dockerfile -->
+ 
+ ## Database Migrations
+ 
+-> uncertain — verify with developer
++Not applicable: no database. See [DATA_MODEL.md](DATA_MODEL.md).
++
++<!-- sources: src/docforge/agent/budget.py -->
+ 
+ ## Secret Rotation
+ 
+-> uncertain — verify with developer
++The only secret is the Anthropic API key. On the host it is held by the OpenShell `anthropic` provider (created from `ANTHROPIC_API_KEY`; exact rotation command: uncertain — verify with developer). It is never placed in the sandbox. See [SECURITY.md](SECURITY.md).
++
++<!-- sources: sandbox/anthropic-profile.yaml, sandbox/run-agent.sh -->
+ 
+ ## Configuration Management
+ 
+-> uncertain — verify with developer
++`docforge.toml` is version-controlled and reviewed like code. After changing the impact map, run `docforge check --strict`. The map in this repository was guessed by `docforge init` and flagged in its comment for review.
++
++<!-- sources: docforge.toml -->
+ 
+ ## Logs
+ 
+-> uncertain — verify with developer
++Per agent run: `documentation/build/agent/{trace.log,policy.log,run.json}`. Spend: `~/.docforge/usage.jsonl` or `docforge usage`. OpenShell denials: `openshell logs <sandbox>` (used by `redteam.sh`).
++
++<!-- sources: src/docforge/agent/runner.py, sandbox/redteam.sh -->
+ 
+ ## Backups
+ 
+-> uncertain — verify with developer
++Nothing to back up except the usage ledger `~/.docforge/usage.jsonl`, which enforces the monthly cap; losing it resets the month's tally to zero.
++
++<!-- sources: src/docforge/agent/budget.py -->
+ 
+ ## Releases
+ 
+-> uncertain — verify with developer
++No release automation. The manual build job runs on tag refs and the version string comes from `git describe`. Package version is `0.1.0`. Bumping it changes the image tags used by `run-agent.sh` and `redteam.sh`.
++
++<!-- sources: .github/workflows/docforge.yml, pyproject.toml, sandbox/run-agent.sh -->
+ 
+ ## Making Production Changes
+ 
+-> uncertain — verify with developer
++Not a service. For changes: run tests and lint ([TESTING.md](TESTING.md)); if you touch policy, budget, apply or sandbox files run `sandbox/redteam.sh`; add a `Docs-Impact` trailer or update the mapped docs.
++
++<!-- sources: docforge.toml, sandbox/redteam.sh -->
+ 
+ ## Known Technical Debt
+ 
+-> uncertain — verify with developer
++- CI installs docforge from a repository that did not exist at last status (2026-09-30).
++- The build-sandbox red-team checks (5.4, 5.4b) still needed a rerun under OpenShell at that date.
++- No CI job runs pytest, ruff or mypy (workflow only runs `docforge check` and the manual build).
++- Prices and model id are hard-coded.
++- Agent impact runs did not add `sources` comments to CHANGELOG entries (status note).
++
++<!-- sources: STATUS-2026-09-30.md, .github/workflows/docforge.yml, src/docforge/agent/budget.py -->
+ 
+ ## Fragile Areas
+ 
+-### Fragile area: <component>
++### Fragile area: Policy enforcement point
+ 
+-- Component:
+-- Why it is sensitive:
+-- What depends on it:
+-- What must be tested before changing it:
+-- Relevant files:
+-- Relevant ADR:
++- Component: `agent/policy.py`, `apply.py`, `config.AGENT_WRITABLE`
++- Why it is sensitive: the only barrier between model output and the repository.
++- What depends on it: the guarantee that agent patches only touch docs.
++- What must be tested before changing it: `tests/test_agent.py`, `tests/test_apply.py`, `sandbox/redteam.sh`.
++- Relevant files: `src/docforge/agent/policy.py`, `src/docforge/apply.py`
++- Relevant ADR: [ADR-001](adr/001-human-reviewed-patches-only.md)
+ 
+-> uncertain — verify with developer
++### Fragile area: Budget guard
++
++- Component: `agent/budget.py`
++- Why it is sensitive: hard-coded prices; wrong values silently defeat the cap.
++- What must be tested before changing it: `tests/test_agent.py`.
++- Relevant ADR: [ADR-002](adr/002-budget-guard-and-manual-agent-loop.md)
++
++### Fragile area: Streaming retry in the runner
++
++- Component: `agent/runner.py`
++- Why it is sensitive: it imports `httpx2`, described as the SDK's HTTP client, but `httpx2` is not a direct dependency in `pyproject.toml` (uncertain — verify with developer). A dropped stream is retried only for connection/transport errors.
++
++### Fragile area: PDF build environment
++
++- Component: `build.py`, `docforge.lua`, `sandbox/build.Dockerfile`
++- Why it is sensitive: depends on pandoc/tectonic/Chromium; Chromium needs `--no-zygote` under OpenShell seccomp; exec sessions do not inherit image ENV.
++- Relevant ADR: [ADR-006](adr/006-pandoc-tectonic-manual-pipeline.md)
++
++<!-- sources: src/docforge/agent/policy.py, src/docforge/agent/runner.py, src/docforge/agent/budget.py, pyproject.toml, sandbox/build.Dockerfile, sandbox/build-policy.yaml -->
+diff --git a/docs/OPERATIONS.md b/docs/OPERATIONS.md
+--- a/docs/OPERATIONS.md
++++ b/docs/OPERATIONS.md
+@@ -4,16 +4,33 @@
+ 
+ ## Monitoring
+ 
+-> uncertain — verify with developer
++No service to monitor. Monitor spend with `docforge usage` (per run, this month, total) and CI status of the `docforge` workflow. Agent health per run: `run.json` status and `trace.log`.
++
++<!-- sources: src/docforge/cli.py, src/docforge/agent/runner.py, .github/workflows/docforge.yml -->
+ 
+ ## Alerts
+ 
+-> uncertain — verify with developer
++None configured. The monthly cap (default $10) is the only automatic guard; it refuses further calls rather than alerting.
++
++<!-- sources: src/docforge/agent/budget.py, docforge.toml -->
+ 
+ ## Routine Operations
+ 
+-> uncertain — verify with developer
++- Run an impact check after significant code changes: `sandbox/run-agent.sh <repo> impact --base <ref>`, review `report.md`, then `docforge apply documentation/build/agent/docforge.patch --path <repo>`, push manually.
++- First-time pass on a repository: `sandbox/run-agent.sh <repo> bootstrap` (default cap $3.00).
++- Draft an ADR: `sandbox/run-agent.sh <repo> adr "Title" --note "..."`.
++- Rebuild sandbox images after a version bump: `sandbox/build-images.sh`.
++- Re-verify sandbox controls: `sandbox/redteam.sh`.
++- Build the manual: `docforge build` or the CI `manual` job.
++
++<!-- sources: sandbox/run-agent.sh, sandbox/build-images.sh, sandbox/redteam.sh, src/docforge/cli.py -->
+ 
+ ## Incident Response
+ 
+-> uncertain — verify with developer
++- Suspected key leak: rotate the Anthropic key at the provider and update the OpenShell provider (uncertain — verify with developer for commands). Check `sandbox/redteam.sh` control 5.1.
++- Unexpected spend: `docforge usage`; inspect `~/.docforge/usage.jsonl` (`note` field marks refusals and worst-case charges).
++- Agent attempted disallowed writes or reads: see `policy.log`; the denials are already enforced, but review the patch carefully.
++- A bad patch was applied: it is on its own branch; delete the branch.
++- Other symptoms: [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
++
++<!-- sources: sandbox/redteam.sh, src/docforge/agent/budget.py, src/docforge/agent/policy.py, src/docforge/apply.py -->
+diff --git a/docs/SECURITY.md b/docs/SECURITY.md
+--- a/docs/SECURITY.md
++++ b/docs/SECURITY.md
+@@ -4,60 +4,99 @@
+ 
+ ## Trust Boundaries
+ 
+-> uncertain — verify with developer
++1. **Model output is untrusted.** It can only act through `ToolLayer`; writes are staged, not applied.
++2. **Agent patch is untrusted at apply time.** `docforge apply` re-validates every path.
++3. **Sandbox vs host.** The agent runs on a copy of the repository in an OpenShell sandbox; only `/sandbox/out` returns.
++4. **Repository content is untrusted input to the model** (prompt injection via file contents is possible; mitigated only by the write allowlist and human review).
++
++<!-- sources: src/docforge/agent/policy.py, src/docforge/apply.py, sandbox/agent-policy.yaml -->
+ 
+ ## Authentication
+ 
+-> uncertain — verify with developer
++No user authentication. Outbound: Anthropic API key via the SDK (`ANTHROPIC_API_KEY`). In the sandbox the key is a placeholder replaced by OpenShell at egress, only for `api.anthropic.com`, only for listed binaries (curl, python3).
++
++<!-- sources: src/docforge/cli.py, sandbox/anthropic-profile.yaml -->
+ 
+ ## Authorisation
+ 
+-> uncertain — verify with developer
++Write allowlist `README.md`, `CHANGELOG.md`, `docs/**`, and only `.md` files; not configurable ([ADR-003](adr/003-openshell-sandboxes.md) and [ADR-001](adr/001-human-reviewed-patches-only.md)). Reads are confined to the repository root: absolute paths, `..`, backslashes, NUL and symlink escapes are denied.
++
++<!-- sources: src/docforge/config.py, src/docforge/agent/policy.py, src/docforge/apply.py -->
+ 
+ ## Secrets Management
+ 
+-> uncertain — verify with developer
++Secret-like files are unreadable by the agent and excluded from listings, grep and diff: `.env*`, `*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.git/**`, `.npmrc`, `.pypirc`. The real API key is not baked into images or put in the sandbox. Note the `.git/**` exclusion covers file reads, while the sandbox upload does include `.git` so the agent can diff.
++
++<!-- sources: src/docforge/agent/policy.py, sandbox/agent.Dockerfile, sandbox/run-agent.sh -->
+ 
+ ## Session Handling
+ 
+-> uncertain — verify with developer
++Not applicable (no sessions).
++
++<!-- sources: src/docforge/cli.py -->
+ 
+ ## API Security
+ 
+-> uncertain — verify with developer
++No inbound API. The CLI's outbound call goes to the Anthropic API over HTTPS.
++
++<!-- sources: src/docforge/agent/runner.py -->
+ 
+ ## Network Exposure
+ 
+-> uncertain — verify with developer
++Agent sandbox: `network_policies` is empty; the only egress comes from the `anthropic` provider profile (api.anthropic.com:443). Build sandbox: no egress and no provider. No listening ports.
++
++<!-- sources: sandbox/agent-policy.yaml, sandbox/build-policy.yaml, sandbox/anthropic-profile.yaml -->
+ 
+ ## Input Validation
+ 
+-> uncertain — verify with developer
++- Config: strict key and type validation.
++- Tool arguments: strict JSON schemas (`additionalProperties: false`), size limits (200,000-byte reads, 150,000-char diff, 200 grep matches, 2,000 listed files), binary files refused.
++- Patch paths: diff headers, `---/+++` and rename/copy lines are all parsed for allowlist checking.
++
++<!-- sources: src/docforge/config.py, src/docforge/agent/policy.py, src/docforge/apply.py -->
+ 
+ ## Dependency Security
+ 
+-> uncertain — verify with developer
++No scanning is configured in the repository (uncertain — verify with developer). Versions are locked in `uv.lock`. `anthropic` is unpinned in `pyproject.toml`. See [DEPENDENCIES.md](DEPENDENCIES.md).
++
++<!-- sources: pyproject.toml, .github/workflows/docforge.yml -->
+ 
+ ## Logging and Audit
+ 
+-> uncertain — verify with developer
++Each denial is logged with timestamp, tool, path and reason to `policy.log`; every model call is appended to the usage ledger. Neither is tamper-protected.
++
++<!-- sources: src/docforge/agent/policy.py, src/docforge/agent/budget.py -->
+ 
+ ## Sensitive Data
+ 
+-> uncertain — verify with developer
++Repository contents that the agent reads (excluding secret patterns) are sent to the Anthropic API. Do not run the agent on repositories whose non-secret files may not leave your environment. Secrets under other filenames would not be filtered (uncertain — verify with developer whether additional patterns are needed).
++
++<!-- sources: src/docforge/agent/policy.py -->
+ 
+ ## Rate Limiting
+ 
+-> uncertain — verify with developer
++None on requests. Spend is capped per run and per month by construction ([ADR-002](adr/002-budget-guard-and-manual-agent-loop.md)), plus turn limits.
++
++<!-- sources: src/docforge/agent/budget.py, src/docforge/agent/runner.py -->
+ 
+ ## Encryption and TLS
+ 
+-> uncertain — verify with developer
++Outbound TLS is handled by the Anthropic SDK; the CI installer uses `curl --proto '=https' --tlsv1.2`. The usage ledger is stored unencrypted.
++
++<!-- sources: .github/workflows/docforge.yml, src/docforge/agent/budget.py -->
+ 
+ ## Security Assumptions
+ 
+-> uncertain — verify with developer
++- OpenShell enforces the filesystem, landlock and egress policies (landlock `best_effort`, so weaker kernels may enforce less).
++- The host user reviews patches before applying.
++- `sandbox/redteam.sh` is the evidence for controls 5.1–5.4b; per the 2026-09-30 status note, the build-sandbox checks still needed a rerun.
++
++<!-- sources: sandbox/agent-policy.yaml, sandbox/redteam.sh, STATUS-2026-09-30.md -->
+ 
+ ## Responsibilities
+ 
+-> uncertain — verify with developer
++- Developer running the agent: review `report.md` and the patch, keep the API key on the host, keep spend caps sensible.
++- Maintainer: keep policy files, `redteam.sh` and this document in step (strict impact rule `security`).
++- Pilot finding: a downstream project had unused sanitising code; docforge itself is not affected.
++
++<!-- sources: docforge.toml, STATUS-2026-09-30.md -->
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -4,36 +4,61 @@
+ 
+ ## Strategy
+ 
+-> uncertain — verify with developer
++pytest suite under `tests/`, one file per module area. Tests use temporary git repositories and an isolated usage ledger (autouse fixture sets `DOCFORGE_HOME`), so they never touch `~/.docforge`. Static checks: ruff (line length 120, rules E,F,W,I,B,UP,SIM) and mypy in strict mode. Test contents were not read in detail beyond `conftest.py` and `test_smoke.py`; file names indicate coverage of agent, apply, build, checks, config, drift, init and templates (uncertain — verify with developer what each covers).
++
++<!-- sources: tests/conftest.py, tests/test_smoke.py, pyproject.toml, tests/ (file listing) -->
+ 
+ ## Unit Tests
+ 
+-> uncertain — verify with developer
++`tests/test_config.py`, `test_checks.py`, `test_drift.py`, `test_init.py`, `test_templates.py`, `test_build.py`, `test_apply.py`, `test_agent.py`, `test_smoke.py` (CLI `--version`). The runner accepts a fake client (see `run(client: Any ...)` comment), which suggests the agent is tested without the network.
++
++<!-- sources: tests/, src/docforge/agent/runner.py -->
+ 
+ ## Integration Tests
+ 
+-> uncertain — verify with developer
++The `repo` fixture creates a real git repository, so git-dependent code is exercised with the real git CLI. No dedicated integration suite is defined.
++
++<!-- sources: tests/conftest.py -->
+ 
+ ## End-to-End Tests
+ 
+-> uncertain — verify with developer
++None automated. Manual pilot runs are recorded in `evidence/` (not reviewed here).
++
++<!-- sources: evidence/ (file listing) -->
+ 
+ ## Security Tests
+ 
+-> uncertain — verify with developer
++`sandbox/redteam.sh` runs live attacks against the OpenShell sandboxes: key absence (5.1), key swap works only for Anthropic (5.1b), blocked egress (5.2, 5.2b), read-only system paths (5.3, 5.3b), build sandbox offline (5.4, 5.4b). Needs docker, openshell and images; the only API request is the free `GET /v1/models`. `--agent-only` skips build-sandbox checks.
++
++<!-- sources: sandbox/redteam.sh -->
+ 
+ ## Manual and Smoke Tests
+ 
+-> uncertain — verify with developer
++`docforge check --strict` on this repository; `docforge build --format tex` to inspect LaTeX; `docforge build --strict` to ensure Mermaid renders (the image build does this with `sandbox/warmup`).
++
++<!-- sources: src/docforge/cli.py, sandbox/build.Dockerfile -->
+ 
+ ## Test Environments and Data
+ 
+-> uncertain — verify with developer
++Local WSL/Linux via `./init.sh`. `sandbox/warmup/` is a fixture manual. `git` must be installed.
++
++<!-- sources: init.sh, sandbox/build.Dockerfile -->
+ 
+ ## Running Tests
+ 
+-> uncertain — verify with developer
++```bash
++./dev.sh pytest -q
++./dev.sh ruff check .
++./dev.sh mypy src
++sandbox/redteam.sh --agent-only   # needs images + OpenShell
++```
++
++<!-- sources: dev.sh, pyproject.toml, sandbox/redteam.sh -->
+ 
+ ## Required Before Changes
+ 
+-> uncertain — verify with developer
++- `pytest` passes; ruff and mypy clean (no CI job enforces this: see [MAINTENANCE.md](MAINTENANCE.md#known-technical-debt)).
++- `docforge check --strict` passes (the only thing CI enforces).
++- Changes to policy/budget/apply/sandbox files: rerun `sandbox/redteam.sh`.
++
++<!-- sources: .github/workflows/docforge.yml, docforge.toml -->
+diff --git a/docs/TROUBLESHOOTING.md b/docs/TROUBLESHOOTING.md
+--- a/docs/TROUBLESHOOTING.md
++++ b/docs/TROUBLESHOOTING.md
+@@ -4,14 +4,53 @@
+ 
+ ## Known Problems
+ 
+-### Problem: <title>
++### Problem: Agent run fails with "budget exhausted"
+ 
+-- Possible symptoms:
+-- Likely causes:
+-- Diagnostic steps:
+-- Resolution:
+-- Relevant logs:
+-- Relevant components:
+-- Escalation considerations:
++- Possible symptoms: exit 3, message with per-run and monthly caps.
++- Likely causes: the guard refuses a call when the remaining allowance cannot fund at least 2,048 output tokens after worst-case input cost.
++- Diagnostic steps: `docforge usage`; check `[budget]` in `docforge.toml`.
++- Resolution: raise `[budget.per_run_usd]` or `monthly_usd`, or wait for next month.
++- Relevant logs: `trace.log`, `~/.docforge/usage.jsonl` (refusals are recorded with a note).
++- Relevant components: `agent/budget.py`.
++- Escalation considerations: none.
+ 
+-> uncertain — verify with developer
++### Problem: Agent run stops without producing `docforge.patch`
++
++- Possible symptoms: exit 3; `run.json` status `failed`.
++- Likely causes (all seen in the pilot's early runs per the status note): a single response too long (`max_tokens`), the turn limit reached, a network stream dropped mid-reply. Also model refusal.
++- Diagnostic steps: read `trace.log` (ends with `FAILED:`).
++- Resolution: finished documents are kept in `docforge.partial.patch`; review it and apply manually if acceptable, or rerun. Dropped streams are already retried 3 times.
++- Relevant components: `agent/runner.py`.
++
++### Problem: "no Anthropic credentials"
++
++- Likely causes: `ANTHROPIC_API_KEY` unset; or the OpenShell `anthropic` provider not attached/imported.
++- Resolution: set the key on the host for direct runs; for the sandbox import `sandbox/anthropic-profile.yaml` and create the provider.
++
++### Problem: `docforge apply` refuses the patch
++
++- Likely causes: patch touches a path outside `README.md`, `CHANGELOG.md`, `docs/**.md`; branch already exists; patch does not apply cleanly because the docs changed since the run.
++- Resolution: rerun the agent on the current tree, or pass `--branch`.
++
++### Problem: `docforge check` reports drift or "base ref not found"
++
++- Likely causes: a code file in an impact category changed without its docs; or a shallow CI clone.
++- Resolution: update the mapped docs, or add a commit trailer `Docs-Impact: none — <reason>` (a reason is mandatory). CI uses `fetch-depth: 0` for this reason.
++
++### Problem: PDF build fails or diagrams stay as code
++
++- Symptoms: "missing tools", or warning "mmdc not found", or `DOCFORGE-MERMAID-FAILED`.
++- Resolution: install pandoc, tectonic, mermaid-cli (`./init.sh` reports which). Mermaid needs Node >= 20 and headless Chrome. In containers set `DOCFORGE_PUPPETEER_CONFIG`. Use `--format tex` to inspect the LaTeX.
++- Historical lessons (from build/sandbox comments): under OpenShell, Chromium's zygote needs a user namespace which seccomp forbids, hence `--no-zygote`; exec sessions do not inherit image ENV, so tectonic tries the (blocked) network unless `XDG_CACHE_HOME` is passed; uploads from a Windows drive (`/mnt/c`) arrive as zero bytes, so stage on the Linux filesystem.
++
++### Problem: sandbox cannot reach the OpenShell gateway
++
++- Likely cause (status note): Docker Desktop's network cannot reach the OpenShell gateway.
++- Resolution: the status note says a separate native Docker engine was installed with `sandbox/install-native-docker.sh`; also `wsl --update` was needed. Details: uncertain — verify with developer.
++
++### Problem: CI `docforge check` fails at install
++
++- Likely cause: `DOCFORGE_SPEC` points at `github.com/beese54/docforge`, which did not exist at 2026-09-30.
++- Resolution: publish the repository or change `DOCFORGE_SPEC`.
++
++<!-- sources: src/docforge/agent/budget.py, src/docforge/agent/runner.py, src/docforge/apply.py, src/docforge/drift.py, src/docforge/build.py, sandbox/build.Dockerfile, sandbox/build-policy.yaml, sandbox/redteam.sh, STATUS-2026-09-30.md, .github/workflows/docforge.yml -->
+diff --git a/docs/adr/001-human-reviewed-patches-only.md b/docs/adr/001-human-reviewed-patches-only.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/001-human-reviewed-patches-only.md
+@@ -0,0 +1,33 @@
++# ADR-001: The agent proposes patches; a human applies them, on a doc-path allowlist
++
++## Status
++
++Accepted
++
++## Context
++
++An LLM agent that edits a repository directly could change code or leak content through file writes. The tool is meant to maintain documentation only.
++
++## Options Considered
++
++- Let the agent write files directly.
++- Let the agent write only docs, directly.
++- Stage writes in memory, output a patch, require a human to apply it (chosen).
++
++## Decision
++
++`ToolLayer.write_doc` only stages content in memory and only for `README.md`, `CHANGELOG.md`, `docs/**` Markdown files. The runner turns staged content into `docforge.patch`. `docforge apply` re-checks every path in the patch, commits on a new branch and never pushes. The allowlist `AGENT_WRITABLE` is deliberately not configurable.
++
++## Rationale
++
++Evidence: comments in `agent/policy.py` ("Nothing here writes to disk"), `apply.py` ("a patch that was edited, or produced by something other than the sandboxed agent, still cannot touch code") and `config.py` ("Deliberately not configurable"). Broader rationale beyond these comments: uncertain — verify with developer.
++
++## Consequences
++
++- Safe by default; every change gets human review.
++- Extra step for the user; patches can fail to apply if docs change after the run.
++- Code files can never be updated by the agent.
++
++## Related Components
++
++`src/docforge/agent/policy.py`, `src/docforge/apply.py`, `src/docforge/config.py`, [SECURITY.md](../SECURITY.md)
+diff --git a/docs/adr/002-budget-guard-and-manual-agent-loop.md b/docs/adr/002-budget-guard-and-manual-agent-loop.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/002-budget-guard-and-manual-agent-loop.md
+@@ -0,0 +1,32 @@
++# ADR-002: Hand-written agent loop with a hard budget guard
++
++## Status
++
++Accepted
++
++## Context
++
++Model calls cost money. Spend must be capped per run and per month without relying on the model's cooperation.
++
++## Options Considered
++
++- The SDK's tool runner.
++- A manual loop with a pre-call guard (chosen).
++
++## Decision
++
++`agent/runner.py` runs the loop manually so that every call passes through `BudgetGuard`. Before each call the guard counts input tokens and sets `max_tokens` so the worst case (all input at cache-write rate, all output used) fits the remaining allowance; if under 2,048 tokens fit, the call is refused. Interrupted streams are charged worst-case. Per-command turn limits (impact 40, adr 20, bootstrap 120). Spend goes to `~/.docforge/usage.jsonl`.
++
++## Rationale
++
++Stated in the module docstrings: "Manual (not the SDK tool runner) so every call passes through the budget guard first" and "Hard spend caps, enforced by construction".
++
++## Consequences
++
++- The cap cannot be exceeded by a single call.
++- Prices and model id are hard-coded; a stale price table weakens the guarantee.
++- The ledger over-states rather than under-states interrupted calls.
++
++## Related Components
++
++`src/docforge/agent/runner.py`, `src/docforge/agent/budget.py`, `docforge.toml` `[budget]`
+diff --git a/docs/adr/003-openshell-sandboxes.md b/docs/adr/003-openshell-sandboxes.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/003-openshell-sandboxes.md
+@@ -0,0 +1,36 @@
++# ADR-003: Run the agent and the PDF build in OpenShell sandboxes
++
++## Status
++
++Accepted
++
++## Context
++
++The agent reads a repository and talks to an external API; the PDF build runs pandoc, LaTeX and headless Chromium over repository content. Both should have minimal privileges, and the API key should not be exposed.
++
++## Options Considered
++
++- Run on the host.
++- Plain Docker. (The build was verified offline this way per `build-policy.yaml`.)
++- OpenShell sandboxes with policy files (chosen).
++
++## Decision
++
++- Agent sandbox: image `docforge-agent`, `agent-policy.yaml` (read-only system paths, writable `/sandbox`, `/tmp`; empty network policy), plus the `anthropic` provider profile granting api.anthropic.com:443 to listed binaries, with the real key injected at egress.
++- Build sandbox: image `docforge-build` with all downloads baked in at image build time, `build-policy.yaml` with no network at all.
++- The repository is uploaded as a copy; only `/sandbox/out` is returned.
++- Controls are verified by `sandbox/redteam.sh`.
++
++## Rationale
++
++From the policy file comments: writes in the sandbox cannot reach the host repo; the key never enters the sandbox; the build needs no egress. Why OpenShell over alternatives: uncertain — verify with developer.
++
++## Consequences
++
++- Requires OpenShell and a compatible Docker engine (status note: Docker Desktop's network could not reach the gateway).
++- Chromium must run with `--no-zygote`; exec sessions do not inherit image ENV.
++- Landlock is `best_effort`.
++
++## Related Components
++
++`sandbox/`, [SECURITY.md](../SECURITY.md), [DEPLOYMENT.md](../DEPLOYMENT.md)
+diff --git a/docs/adr/004-deterministic-checks-in-ci.md b/docs/adr/004-deterministic-checks-in-ci.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/004-deterministic-checks-in-ci.md
+@@ -0,0 +1,31 @@
++# ADR-004: CI runs only deterministic checks; the model is never called in CI
++
++## Status
++
++Accepted
++
++## Context
++
++Documentation quality must be enforced on every change, but model calls are costly, non-deterministic and need credentials.
++
++## Options Considered
++
++- Run the agent in CI.
++- Run only deterministic checks in CI; run the agent on demand (chosen).
++
++## Decision
++
++`docforge check` never calls the network or model. CI runs `docforge check --strict`. The agent runs on demand inside a sandbox.
++
++## Rationale
++
++Workflow header: "The model is never called in CI (the agent runs on demand in a sandbox)"; `checks.py` docstring: "Never calls the network or the model."
++
++## Consequences
++
++- CI is free and reproducible; `--strict` makes soft rules and adr_worthy drift fail the build.
++- Semantic accuracy of docs is not verified by CI; only structure, links, ADR format, markers and drift.
++
++## Related Components
++
++`src/docforge/checks.py`, `.github/workflows/docforge.yml`, [TESTING.md](../TESTING.md)
+diff --git a/docs/adr/005-impact-map-drift-detection.md b/docs/adr/005-impact-map-drift-detection.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/005-impact-map-drift-detection.md
+@@ -0,0 +1,32 @@
++# ADR-005: Detect documentation drift with a configurable impact map and a commit-trailer escape hatch
++
++## Status
++
++Accepted
++
++## Context
++
++Docs go stale when code changes without them. A tool needs a cheap, deterministic signal.
++
++## Options Considered
++
++- Rely on reviewers.
++- Map code globs to docs and flag changes with no matching doc change (chosen).
++
++## Decision
++
++`docforge.toml` holds `[[impact]]` rules (category, globs, docs, `adr_worthy`). `docforge check` inspects commits in `base..HEAD` plus uncommitted files; if a rule's globs match and none of its docs changed, it warns, or errors under `--strict` when `adr_worthy`. A commit can opt out with `Docs-Impact: none — <reason>`; a missing reason is reported and ignored. `docforge init` guesses the initial map from files present.
++
++## Rationale
++
++Module docstring of `drift.py`; the comment in `docforge.toml`. Choice of globs over other techniques: uncertain — verify with developer.
++
++## Consequences
++
++- The map must be maintained; the current one was guessed and needs review.
++- Drift shows only that a doc file changed, not that it is correct.
++- Needs full git history in CI (`fetch-depth: 0`).
++
++## Related Components
++
++`src/docforge/drift.py`, `src/docforge/init.py`, `docforge.toml`
+diff --git a/docs/adr/006-pandoc-tectonic-manual-pipeline.md b/docs/adr/006-pandoc-tectonic-manual-pipeline.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/006-pandoc-tectonic-manual-pipeline.md
+@@ -0,0 +1,30 @@
++# ADR-006: Build the manual with pandoc, a Lua filter, tectonic and mermaid-cli
++
++## Status
++
++Accepted
++
++## Context
++
++Repository Markdown must become a versioned PDF manual, including Mermaid diagrams and cross-file links that make sense on paper.
++
++## Options Considered
++
++Alternatives are not recorded in the repository (uncertain — verify with developer).
++
++## Decision
++
++`docforge build` runs pandoc over the configured chapters with `--defaults`, a generated header and `docforge.lua`, producing LaTeX and a PDF via tectonic. The filter renders Mermaid blocks with `mmdc` into numbered figures, and rewrites links: to files in the manual become internal links, other repo paths become plain text. The title carries `git describe` version, date and SHA. Defaults can be overridden by files in `documentation/`.
++
++## Rationale
++
++Visible in `build.py` and `docforge.lua` comments (pandoc does not rewrite links whose path does not match an input literally; relative repo paths mean nothing on paper). Choice of tectonic over other TeX engines: uncertain — verify with developer.
++
++## Consequences
++
++- Requires pandoc, tectonic, mermaid-cli, Chromium; build image bakes them in for offline use ([ADR-003](003-openshell-sandboxes.md)).
++- Diagram failures are warnings unless `--strict`.
++
++## Related Components
++
++`src/docforge/build.py`, `src/docforge/templates/docforge.lua`, `sandbox/build.Dockerfile`
+diff --git a/docs/adr/007-doctypes-single-source-of-truth.md b/docs/adr/007-doctypes-single-source-of-truth.md
+new file mode 100644
+--- /dev/null
++++ b/docs/adr/007-doctypes-single-source-of-truth.md
+@@ -0,0 +1,31 @@
++# ADR-007: One table defines the documentation set for scaffolding, checking and the agent prompt
++
++## Status
++
++Accepted
++
++## Context
++
++The scaffold, the checker and the agent's instructions must agree on which documents and sections exist.
++
++## Options Considered
++
++- Separate lists per feature.
++- A single table in `doctypes.py` (chosen).
++
++## Decision
++
++`doctypes.DOC_TYPES` lists each document, purpose and required H2 sections. `init` renders skeletons from it, `check_sections` verifies against it, and `agent/prompts.py` builds the system prompt from it. The "uncertain" marker text is defined there too.
++
++## Rationale
++
++Module docstring: "so the two can never drift apart".
++
++## Consequences
++
++- Changing a section name updates all three consumers, but existing docs must be updated too or `check` fails.
++- Custom documents beyond the set are only checked by link/uncertain rules (via `docs/**`).
++
++## Related Components
++
++`src/docforge/doctypes.py`, `src/docforge/init.py`, `src/docforge/checks.py`, `src/docforge/agent/prompts.py`

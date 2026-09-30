@@ -1,0 +1,18 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,7 +7,14 @@
+ 
+ ### Added
+ 
++- MIT `LICENSE` and `CREDITS.md` (design credit to Meng To, fonts and libraries).
++- README: design credit, licence section, and three screenshots in `docs/screenshots/`.
++- `tests/e2e/run.sh` converts Docker volume mount paths with `cygpath -m` when available, so the e2e drives run under Git Bash on Windows.
++
+ ### Changed
++
++- README now describes five repair rules (skipped heading levels, duplicate H1s, broken list nesting, mixed bullet markers, unbalanced emphasis). Each repair is listed with its line number and before/after text. The README says the source file is never modified. This has not been checked against the code.
++- `.gitignore`: only `dropzone.png`, `reader.png` and `repairs.png` in `docs/screenshots/` are committed. `documentation/build/` is ignored.
+ 
+ ### Security
+ 

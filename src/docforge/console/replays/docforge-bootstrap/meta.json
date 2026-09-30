@@ -1,0 +1,7 @@
+{
+  "title": "docforge documents itself",
+  "repo": "docforge",
+  "task": "bootstrap",
+  "detail": "12 docs, 7 ADRs; flagged the undeclared httpx2 dependency",
+  "recorded": "2026-09-30"
+}

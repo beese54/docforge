@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Agent runs · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label">Documentation agent</div>
+    <h1>Agent runs</h1>
+    <p class="sub">Replays play back real recorded runs at no cost. Live runs start the agent in the OpenShell sandbox from a repository's page.</p>
+  </div>
+</div>
+
+<section class="grid3">
+  {% for r in replays %}
+  <div class="card">
+    <div class="actions"><span class="pill replay">Replay</span><span class="pill info">{{ r.task }}</span></div>
+    <h3>{{ r.title }}</h3>
+    <p class="sub">{{ r.detail }}</p>
+    <p class="sub mono">{{ r.turns }} turns · recorded cost ${{ '%.4f' % r.cost_usd }} · {{ r.files|length }} file(s)</p>
+    <div class="actions"><button class="gate" data-action="/api/replays/{{ r.name }}" data-go>Play replay</button></div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <h2>This session</h2>
+  {% if jobs %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Run</th><th>Mode</th><th>Task</th><th>Status</th><th class="num">Cost</th><th></th></tr></thead>
+    <tbody>
+    {% for j in jobs %}
+      <tr>
+        <td>{{ j.title }}</td>
+        <td><span class="pill {{ j.mode }}">{{ j.mode|capitalize }}</span></td>
+        <td class="mono">{{ j.task }}</td>
+        <td><span class="pill {{ 'pass' if j.status == 'ok' else 'fail' if j.status == 'failed' else 'info' }}">{{ j.status }}</span></td>
+        <td class="num">{% if j.mode == 'replay' %}$0 <span class="sub">(recorded ${{ '%.4f' % j.cost }})</span>{% else %}${{ '%.4f' % j.cost }}{% endif %}</td>
+        <td><a href="/runs/{{ j.id }}">Log</a>{% if j.status != 'running' %} · <a href="/runs/{{ j.id }}/review">Review</a>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="sub">No runs yet in this session. Play a replay above, or open a repository and select <b>Run agent</b>.</p>{% endif %}
+</section>
+{% endblock %}

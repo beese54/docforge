@@ -70,6 +70,65 @@ def adrs(root: Path) -> list[AdrRow]:
     return rows
 
 
+def diff_lines(patch: str) -> list[tuple[str, str]]:
+    """(css class, text) per line of a unified diff."""
+    out: list[tuple[str, str]] = []
+    for line in patch.splitlines():
+        if line.startswith("diff --git"):
+            out.append(("file", line.split(" b/", 1)[-1]))
+        elif line.startswith(("--- ", "+++ ", "new file mode", "index ")):
+            continue
+        elif line.startswith("@@"):
+            out.append(("hunk", line))
+        elif line.startswith("+"):
+            out.append(("add", line))
+        elif line.startswith("-"):
+            out.append(("del", line))
+        else:
+            out.append(("", line))
+    return out
+
+
+def patch_files(patch: str) -> list[str]:
+    return [line.split(" b/", 1)[-1] for line in patch.splitlines() if line.startswith("diff --git")]
+
+
+def render_report(md: str) -> str:
+    """Small, safe Markdown-to-HTML for agent reports: headings, bullets, bold, code. Everything is escaped."""
+    import html
+
+    def inline(text: str) -> str:
+        text = html.escape(text)
+        text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+        return re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", text)
+
+    out: list[str] = []
+    in_list = False
+    for raw in md.splitlines():
+        line = raw.rstrip()
+        bullet = re.match(r"^\s*(?:[-*]|\d+\.)\s+(.*)", line)
+        if bullet:
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append(f"<li>{inline(bullet.group(1))}</li>")
+            continue
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+        heading = re.match(r"^(#{1,6})\s+(.*)", line)
+        if heading:
+            level = min(len(heading.group(1)) + 1, 4)
+            out.append(f"<h{level}>{inline(heading.group(2))}</h{level}>")
+        elif line.strip() == "---":
+            out.append("<hr>")
+        elif line.strip():
+            out.append(f"<p>{inline(line)}</p>")
+    if in_list:
+        out.append("</ul>")
+    return "\n".join(out)
+
+
 @dataclass(frozen=True)
 class RunRow:
     run_id: str

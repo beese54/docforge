@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Review {{ job.id }} · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label"><a href="/runs">Agent runs</a> / <a href="/runs/{{ job.id }}">{{ job.id }}</a> / Review</div>
+    <h1>Review: {{ job.title }}</h1>
+    <div class="actions">
+      <span class="pill {{ job.mode }}">{{ job.mode|capitalize }}</span>
+      <span class="pill {{ 'pass' if job.status == 'ok' else 'fail' }}">{{ job.status }}</span>
+      <span class="sub">{{ files|length }} file(s) in the patch · policy denials: {{ denials }}</span>
+    </div>
+  </div>
+</div>
+
+{% if job.mode == 'replay' %}
+<div class="card gate"><h3>Replay</h3><p>This is a recorded run, shown for demonstration. There is nothing to apply, push or open. For a real change, start a live run from a repository's page.</p></div>
+{% elif not patch %}
+<div class="card gate">
+  <h3>No patch to apply</h3>
+  <p>The run {{ 'failed' if job.status == 'failed' else 'finished without changes' }}.{% if partial %} Documents it finished before stopping are saved as <code>docforge.partial.patch</code> for manual review.{% endif %} See the log for details.</p>
+</div>
+{% else %}
+{% include "review_actions.html" ignore missing %}
+{% endif %}
+
+<section class="grid2">
+  <div class="card">
+    <h2>Agent's report</h2>
+    <div class="report">{{ report_html|safe }}</div>
+  </div>
+  <div class="card">
+    <h2>Proposed changes</h2>
+    {% if diff %}
+    <div class="diff">{% for cls, text in diff %}<div class="{{ cls }}">{{ text }}</div>{% endfor %}</div>
+    {% else %}<p class="sub">No patch.</p>{% endif %}
+  </div>
+</section>
+
+{% if policy %}
+<section class="card">
+  <h2>Blocked actions (policy log)</h2>
+  <pre class="mono">{{ policy }}</pre>
+</section>
+{% endif %}
+{% endblock %}
