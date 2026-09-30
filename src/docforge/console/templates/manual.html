@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Manual · {{ repo.name }} · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label"><a href="/">Repositories</a> / <a href="/repos/{{ repo.id }}">{{ repo.name }}</a> / Manual</div>
+    <h1>Technical manual</h1>
+    <p class="sub">Markdown → pandoc → LaTeX → PDF, versioned from git. The same as <code>docforge build</code>.</p>
+  </div>
+  <div class="actions">
+    <button class="sandbox" data-action="/api/repos/{{ repo.id }}/build" data-reload>Build manual</button>
+  </div>
+</div>
+{% if error %}<div class="card gate"><h3>Build failed</h3><pre class="mono">{{ error }}</pre></div>{% endif %}
+{% if pdf %}
+<div class="actions"><span class="pill pass">{{ pdf }}</span><span class="sub">{{ built }}</span></div>
+<iframe class="pdf" title="Manual preview" src="/repos/{{ repo.id }}/manual.pdf"></iframe>
+{% else %}
+<section class="empty"><h2>No manual built yet</h2><p>Select <b>Build manual</b>. The first build can take a few minutes while LaTeX packages download; later builds take seconds.</p></section>
+{% endif %}
+{% endblock %}

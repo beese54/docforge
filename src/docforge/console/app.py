@@ -13,17 +13,19 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from docforge import __version__
-from docforge.console import health, registry
+from docforge import __version__, build
+from docforge.config import ConfigError, load
+from docforge.console import health, registry, views
 
 HERE = Path(__file__).parent
 COOKIE = "docforge_session"
@@ -113,5 +115,54 @@ def create_app(state: ConsoleState) -> FastAPI:
     def remove_repo(rid: str) -> JSONResponse:
         registry.remove(rid)
         return JSONResponse({"removed": rid})
+
+    def repo_or_404(rid: str) -> registry.Repo:
+        repo = registry.get(rid)
+        if repo is None:
+            raise HTTPException(404, "That repository is not in the console. Add it on the Repos screen.")
+        return repo
+
+    app.state.repo_or_404 = repo_or_404
+    build_errors: dict[str, str] = {}
+
+    @app.get("/repos/{rid}", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def repo_page(request: Request, rid: str) -> HTMLResponse:
+        repo = repo_or_404(rid)
+        root = Path(repo.path)
+        return page(request, "repo.html", repo=repo, h=health.compute(root), docs=views.coverage(root),
+                    adrs=views.adrs(root))
+
+    def latest_pdf(root: Path) -> Path | None:
+        pdfs = sorted((root / "documentation/build").glob("*.pdf"), key=lambda p: p.stat().st_mtime)
+        return pdfs[-1] if pdfs else None
+
+    @app.get("/repos/{rid}/manual", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def manual_page(request: Request, rid: str) -> HTMLResponse:
+        repo = repo_or_404(rid)
+        pdf = latest_pdf(Path(repo.path))
+        built = datetime.fromtimestamp(pdf.stat().st_mtime).strftime("built %Y-%m-%d %H:%M") if pdf else ""
+        return page(request, "manual.html", repo=repo, pdf=pdf.name if pdf else None, built=built,
+                    error=build_errors.pop(rid, None))
+
+    @app.get("/repos/{rid}/manual.pdf", dependencies=[Depends(session)])
+    def manual_pdf(rid: str) -> FileResponse:
+        pdf = latest_pdf(Path(repo_or_404(rid).path))
+        if pdf is None:
+            raise HTTPException(404, "No manual has been built yet.")
+        return FileResponse(pdf, media_type="application/pdf", filename=pdf.name, content_disposition_type="inline")
+
+    @app.post("/api/repos/{rid}/build", dependencies=[Depends(action)])
+    def build_manual(rid: str) -> JSONResponse:
+        root = Path(repo_or_404(rid).path)
+        try:
+            result = build.build(load(root))
+        except (ConfigError, build.BuildError) as exc:
+            build_errors[rid] = str(exc)
+            return JSONResponse({"error": "Build failed; details are on the page."}, status_code=400)
+        return JSONResponse({"message": f"Built {result.output.name} ({len(result.chapters)} chapters)"})
+
+    @app.get("/usage", response_class=HTMLResponse, dependencies=[Depends(session)])
+    def usage_page(request: Request) -> HTMLResponse:
+        return page(request, "usage.html", s=views.spend())
 
     return app

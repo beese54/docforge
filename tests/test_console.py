@@ -146,3 +146,59 @@ def test_uninitialised_repo_shows_setup(client: TestClient, state: ConsoleState,
 def test_no_external_resources(client: TestClient) -> None:
     page = client.get("/").text
     assert "http://" not in page.replace(BASE, "") and "https://" not in page
+
+
+# --- T14: repo detail, manual, usage (DoD 8.4, 8.5) --------------------------------------------------------------
+
+
+def add_project(client: TestClient, state: ConsoleState, path: Path) -> str:
+    return str(client.post("/api/repos", json={"path": str(path)}, headers=hdr(state)).json()["id"])
+
+
+def test_repo_detail_coverage_and_adrs(client: TestClient, state: ConsoleState, project: Path) -> None:
+    (project / "docs/adr/001-use-pandoc.md").write_text(
+        "# ADR-001: Use pandoc\n\n## Status\n\nAccepted\n", encoding="utf-8")
+    (project / "docs/API.md").unlink()
+    rid = add_project(client, state, project)
+    page = client.get(f"/repos/{rid}").text
+    assert "Use pandoc" in page and "Accepted" in page
+    assert "docs/API.md" in page and "missing" in page
+    assert "12/13" in page  # 13 typed docs (README + 12), API.md missing
+
+
+def test_repo_detail_unknown_is_404(client: TestClient) -> None:
+    assert client.get("/repos/nope").status_code == 404
+
+
+HAVE_TEX = __import__("shutil").which("pandoc") and __import__("shutil").which("tectonic")
+
+
+@pytest.mark.skipif(not HAVE_TEX, reason="pandoc/tectonic not installed")
+def test_manual_build_and_inline_preview(client: TestClient, state: ConsoleState, project: Path) -> None:
+    rid = add_project(client, state, project)
+    assert "No manual built yet" in client.get(f"/repos/{rid}/manual").text
+    r = client.post(f"/api/repos/{rid}/build", headers=hdr(state))
+    assert r.status_code == 200, r.text
+    assert "manual" in client.get(f"/repos/{rid}/manual").text
+    pdf = client.get(f"/repos/{rid}/manual.pdf")
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    assert pdf.headers["content-disposition"].startswith("inline")
+
+
+def test_manual_build_needs_token(client: TestClient, project: Path, state: ConsoleState) -> None:
+    rid = add_project(client, state, project)
+    assert client.post(f"/api/repos/{rid}/build").status_code == 403
+
+
+def test_usage_matches_cli(client: TestClient) -> None:
+    from types import SimpleNamespace
+
+    from docforge.agent.budget import BudgetGuard
+
+    g = BudgetGuard("impact", 0.5, 10.0)
+    g.record(SimpleNamespace(input_tokens=1000, output_tokens=500, cache_read_input_tokens=0,
+                             cache_creation_input_tokens=0))
+    cli = CliRunner().invoke(cli_app, ["usage"]).output
+    page = client.get("/usage").text
+    assert g.run_id in page and "$0.0070" in page and "$0.0070" in cli
+    assert "$0.01" in page  # month total rounded to cents

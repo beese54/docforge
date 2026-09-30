@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ repo.name }} · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label"><a href="/">Repositories</a> / {{ repo.name }}</div>
+    <h1>{{ repo.name }} <span class="pill {{ h.state }}">{{ {'healthy':'Healthy','attention':'Needs attention','failing':'Failing','setup':'Not set up'}[h.state] }}</span></h1>
+    <div class="sub mono">{{ repo.path }}</div>
+  </div>
+  <div class="actions">
+    <a href="/repos/{{ repo.id }}/run"><button class="sandbox" type="button">Run agent</button></a>
+    <a href="/repos/{{ repo.id }}/manual"><button class="ghost" type="button">Manual (PDF)</button></a>
+  </div>
+</div>
+
+{% if not h.initialised %}
+<section class="empty">
+  <h2>This repository is not set up for docforge</h2>
+  <p>Run <code>docforge init --path {{ repo.path }}</code> to create the docs structure, then refresh.</p>
+</section>
+{% else %}
+<div class="grid3">
+  <div class="card stat"><span class="label">Docs complete</span><span class="n">{{ docs|selectattr('complete')|list|length }}/{{ docs|length }}</span><span class="sub">all required sections present</span></div>
+  <div class="card stat"><span class="label">Decision records</span><span class="n">{{ adrs|length }}</span><span class="sub">in docs/adr</span></div>
+  <div class="card stat"><span class="label">Uncertain items</span><span class="n">{{ h.uncertain }}</span><span class="sub">waiting for the developer</span></div>
+</div>
+
+<section class="grid2">
+  <div class="card">
+    <h2>Documentation coverage</h2>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Document</th><th class="num">Sections</th><th class="num">Lines</th><th class="num">Uncertain</th></tr></thead>
+      <tbody>
+      {% for d in docs %}
+        <tr>
+          <td><span class="mono">{{ d.path }}</span>{% if not d.exists %} <span class="pill fail">missing</span>{% endif %}</td>
+          <td class="num">{% if d.complete %}<span class="pill pass">{{ d.sections_present }}/{{ d.sections_total }}</span>{% else %}<span class="pill warn">{{ d.sections_present }}/{{ d.sections_total }}</span>{% endif %}</td>
+          <td class="num">{{ d.lines }}</td>
+          <td class="num">{{ d.uncertain or '' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Decision records</h2>
+    {% if adrs %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Decision</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for a in adrs %}
+        <tr><td class="mono">{{ a.number }}</td><td>{{ a.title }}</td><td><span class="pill {{ 'pass' if a.status.startswith('Accepted') else 'info' }}">{{ a.status.split()[0] }}</span></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<p class="sub">No ADRs yet. <code>docforge agent adr "Title"</code> drafts one.</p>{% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Check results</h2>
+  {% set shown = h.findings|rejectattr('rule', 'equalto', 'uncertain')|list %}
+  {% if shown %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Severity</th><th>Rule</th><th>Where</th><th>Message</th></tr></thead>
+    <tbody>
+    {% for f in shown %}
+      <tr><td><span class="pill {{ f.severity|string }}">{{ f.severity|string }}</span></td><td class="mono">{{ f.rule }}</td><td class="mono">{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</td><td>{{ f.message }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p><span class="pill pass">No errors or warnings</span> Structure, sections, links, ADRs and drift all pass.</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

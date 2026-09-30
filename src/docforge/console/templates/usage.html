@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Usage · docforge Console{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <div class="label">Model spend</div>
+    <h1>Usage</h1>
+    <p class="sub">From the local ledger (<code>~/.docforge/usage.jsonl</code>), the same numbers as <code>docforge usage</code>. Replays cost nothing and are not listed.</p>
+  </div>
+</div>
+<div class="grid3">
+  <div class="card stat"><span class="label">This month</span><span class="n">${{ '%.2f' % s.month }}</span><div class="meter" aria-label="{{ '%.0f' % s.month_pct }}% of the monthly cap"><i style="width: {{ '%.1f' % s.month_pct }}%"></i></div><span class="sub">of the ${{ '%.2f' % s.monthly_cap }} monthly cap</span></div>
+  <div class="card stat"><span class="label">All time</span><span class="n">${{ '%.2f' % s.total }}</span><span class="sub">{{ s.runs|length }} agent runs</span></div>
+  <div class="card stat"><span class="label">Model</span><span class="n mono" style="font-size:18px">claude-sonnet-5-5</span><span class="sub">$2 in · $10 out per million tokens</span></div>
+</div>
+{% if s.runs %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>When (UTC)</th><th>Task</th><th>Run</th><th class="num">Model calls</th><th class="num">Cost</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for r in s.runs %}
+    <tr><td class="mono">{{ r.ts.replace('T', ' ')[:16] }}</td><td>{{ r.command }}</td><td class="mono">{{ r.run_id }}</td><td class="num">{{ r.calls }}</td><td class="num">${{ '%.4f' % r.cost }}</td><td class="sub">{{ r.note }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<section class="empty"><h2>No spend recorded</h2><p>Live agent runs appear here with their cost. Replays are free.</p></section>
+{% endif %}
+{% endblock %}
