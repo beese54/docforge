@@ -12,7 +12,8 @@ Branches, local only: `docforge/scaffold` (init output), then `docforge/bootstra
 | 5.2b | Key not sent to a non-Anthropic host | PASS |
 | 5.3 | Writes to system paths (/usr, /etc) denied | PASS |
 | 5.3b | /sandbox/out writable | PASS |
-| 5.4 / 5.4b | Build sandbox: no egress / PDF builds inside OpenShell | **Not verified.** The exec hung (later traced to stdin handling, now fixed). Rerun without `--agent-only`. The offline build is proven in `docker run --network none`. |
+| 5.4 | Build sandbox has no egress | PASS |
+| 5.4b | PDF builds offline inside the OpenShell build sandbox | PASS (after three fixes, commit `3510575`) |
 
 ## T10: `agent impact --base HEAD~3` (DoD 4.5, 4.6)
 - **4.5 PASS:** cost $0.0439 over 4 turns. 0 policy denials. The patch passes `git apply --check`.
@@ -24,9 +25,9 @@ Branches, local only: `docforge/scaffold` (init output), then `docforge/bootstra
 | 6.1 | **PASS.** The successful run cost $1.40 (28 turns). Total T11 spend was $2.20 including three failed runs ($0.25 max_tokens, $0.54 turn limit, $0.016 dropped stream). Each failed run was a docforge bug, fixed in `4a6cd48`, `8aa3dc4` and `98ba8de`. |
 | 6.2 | **PASS.** `docforge check --strict --base cc34345`: 0 errors, 0 warnings. |
 | 6.3 | **PASS.** 8 ADRs (001–008), each citing code evidence. |
-| 6.4 | **PARTIAL.** The citation check found 298 citations, and every cited path exists (one is the glob `src/ingest/*.ts`). Three high-impact claims were verified by hand against the source and are all true: `printSchema` is never used, `mixed-markers` only normalises spacing, and `tests/adversarial/pdf-endpoint.sh` is missing. The full 20-claim sample is **still to do**. |
+| 6.4 | **PASS.** 298 citations, all paths exist. The 20-claim hand audit found 19 true, 1 imprecise, 0 false (`evidence/claims-audit.md`). |
 | 6.5 | **PASS.** The README went from long to 118 lines. Deep material moved to docs/ and ADR-002. |
-| 6.6 | **Not done.** The 13 "Final Objective" questions checklist is still to do. |
+| 6.6 | **PASS (12/13; 1 partly).** Only production deployment is marked uncertain, because the repo defines none (`evidence/final-objective.md`). |
 | 6.7 | **PASS.** 62-page PDF, 0 unresolved references (`evidence/pilot-manual-428e509.pdf`). |
 | 6.8 | **Pending the user.** The PR must be pushed and opened by the owner. CI needs `DOCFORGE_SPEC` to point to a published docforge repo. |
 
