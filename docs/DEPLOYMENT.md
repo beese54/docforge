@@ -4,20 +4,39 @@
 
 ## Environments
 
-> uncertain — verify with developer
+- **Developer machine** (Linux/WSL): venv managed by `uv`, default `~/.venvs/docforge` ([README](../README.md)).
+- **CI**: GitHub Actions on `ubuntu-24.04`, workflow `docforge`.
+- **Sandboxes**: OpenShell sandboxes from two Docker images (agent, build).
+- Staging/production: not applicable; there is no hosted service (uncertain — verify with developer whether any distribution channel such as PyPI is planned).
+
+<!-- sources: init.sh, .github/workflows/docforge.yml, sandbox/build-images.sh -->
 
 ## Build
 
-> uncertain — verify with developer
+- Wheel: `uv build --wheel` (hatchling; package `src/docforge`). Version is in `pyproject.toml` (0.1.0).
+- Images: `sandbox/build-images.sh` removes `dist/`, builds the wheel, then builds `docforge-agent:<version>` (python:3.12-slim, git, curl, the wheel, non-root `sandbox` user) and `docforge-build:<version>` (ubuntu:24.04, pandoc, tectonic, Node 22, mermaid-cli 11, headless Chrome, and a warm-up build of `sandbox/warmup` so builds work offline).
+- The build image downloads tectonic via an install script from `drop-sh.fullyjustified.net` at build time, without a checksum (Node is checksum-verified).
+
+<!-- sources: pyproject.toml, sandbox/build-images.sh, sandbox/agent.Dockerfile, sandbox/build.Dockerfile -->
 
 ## Deploy
 
-> uncertain — verify with developer
+There is nothing to deploy to a server.
+
+- **CI check:** on pull requests and pushes to `main`/`master`, `uvx --from "$DOCFORGE_SPEC" docforge check --strict --base <ref>`. `DOCFORGE_SPEC` is `docforge @ git+https://github.com/beese54/docforge`; per the 2026-09-30 status note this repository did not exist yet, so the check cannot pass on GitHub until it does (or the variable is changed).
+- **CI manual job:** on manual dispatch or tag refs, installs pandoc, tectonic and mermaid-cli, runs `docforge build`, uploads `documentation/build/*.pdf` as artifact `manual`.
+- **Agent:** `sandbox/run-agent.sh` (needs the images, the imported `anthropic` provider profile and an OpenShell gateway). Setup of the profile: see the header of `sandbox/anthropic-profile.yaml`. `sandbox/install-native-docker.sh` installs a separate Docker engine for OpenShell (not read: uncertain — verify with developer what it changes).
+
+<!-- sources: .github/workflows/docforge.yml, STATUS-2026-09-30.md, sandbox/run-agent.sh, sandbox/anthropic-profile.yaml -->
 
 ## Configuration
 
-> uncertain — verify with developer
+See [DESIGN.md](DESIGN.md#configuration-strategy) for `docforge.toml`. Deployment-relevant settings: `DOCFORGE_SPEC` (CI), `DOCFORGE_HOME`, `ANTHROPIC_API_KEY` (agent), image tags derived from `pyproject.toml` version. The build sandbox needs `XDG_CACHE_HOME=/opt/cache`, `PUPPETEER_CACHE_DIR=/opt/cache/puppeteer`, `DOCFORGE_PUPPETEER_CONFIG=/opt/docforge/puppeteer.json` passed explicitly because OpenShell exec sessions do not inherit image ENV.
+
+<!-- sources: .github/workflows/docforge.yml, sandbox/build-policy.yaml, sandbox/build.Dockerfile -->
 
 ## Rollback
 
-> uncertain — verify with developer
+No release process is defined in the repository (uncertain — verify with developer). Practical options: pin `DOCFORGE_SPEC` to an earlier git tag or commit; rebuild images from an earlier commit (image tags equal the version, so rebuilding overwrites a tag unless the version is bumped). Doc patches applied by `docforge apply` are ordinary commits on their own branch and can be dropped by deleting the branch or reverting.
+
+<!-- sources: .github/workflows/docforge.yml, sandbox/build-images.sh, src/docforge/apply.py -->
