@@ -25,7 +25,11 @@ See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 Commands: `init`, `check`, `build`, `agent {impact,adr,bootstrap}`, `apply`, `usage`, `serve`. The agent can only read the repository and *stage* Markdown writes; a human reviews `docforge.patch` and `docforge apply` commits it to a new branch. CI runs only the deterministic `check`; the model is never called in CI. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-<!-- sources: src/docforge/cli.py, .github/workflows/docforge.yml -->
+In plain terms: the agent works on its own inside a locked sandbox, and a person approves every step that leaves it.
+
+![How docforge works: a copy of your code goes into a locked NVIDIA OpenShell sandbox, where the AI agent drafts documentation. Its only way out is Anthropic's AI service, and it never sees the access key. Out comes a proposal (suggested docs and a report). Outside the sandbox a person reviews it, applies it to a new branch, pushes, and opens a pull request. Nothing merges on its own.](docs/images/console/0-how-it-works.png)
+
+<!-- sources: src/docforge/cli.py, .github/workflows/docforge.yml, src/docforge/apply.py, src/docforge/console/publish.py, sandbox/redteam.sh -->
 
 ## Screenshots
 
@@ -47,7 +51,7 @@ docforge Console (`docforge serve`), following the 5-minute route in [docs/DEMO.
 
 ![Review screen: the agent's list of discrepancies found in the code, next to a coloured diff of its proposed changes](docs/images/console/4-review-findings.png)
 
-**Security scorecard.** Every sandbox control is tested by running the attack it must stop: 8 of 8 blocked.
+**Security scorecard.** 8 checks, all passing: 5 attacks on the sandboxes are blocked, and 3 checks confirm the allowed paths still work.
 
 ![Security scorecard: eight PASS results and SCORECARD: ALL PASS](docs/images/console/5-security-scorecard.png)
 

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>How docforge works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+:root {
+  --paper: #f3f6f5; --panel: #ffffff; --ink: #1b2a33; --muted: #56666e; --rule: #c7d2d5;
+  --sandbox: #0d7a72; --sandbox-soft: #dcefec; --gate: #9a6200; --gate-soft: #f6ead3;
+  --deny: #b3261e; --deny-soft: #f8e1df; --pass: #1f7a3a; --pass-soft: #e0f0e4;
+  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+  --display: "Archivo", "Arial Narrow", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { width: 1440px; height: 900px; background: var(--paper); color: var(--ink); font: 16px/1.45 var(--body); padding: 32px 48px 28px; display: flex; flex-direction: column; gap: 16px; }
+.label { font: 500 12px/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 800 38px/1.1 var(--display); margin: 6px 0 0; }
+h1 span { color: var(--sandbox); }
+h2 { font: 800 21px/1.15 var(--display); margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+
+.stage { flex: 1; display: grid; grid-template-columns: 180px 40px 1fr 40px 186px 40px 324px; grid-template-rows: 128px 1fr; column-gap: 0; row-gap: 0; }
+.arrow { grid-row: 2; display: flex; align-items: center; justify-content: center; }
+.arrow svg { width: 40px; height: 24px; }
+
+.card { background: var(--panel); border: 1.5px solid var(--rule); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.step { font: 500 12px var(--mono); letter-spacing: .08em; color: var(--muted); }
+
+.code { grid-column: 1; grid-row: 2; align-self: center; }
+
+/* the single door out of the sandbox */
+.api { grid-column: 3; grid-row: 1; justify-self: end; width: 330px; margin-right: 40px; border-color: var(--sandbox); padding: 12px 16px; gap: 2px; align-self: start; }
+.door { position: absolute; top: -21px; right: 200px; height: 19px; width: 3px; background: var(--sandbox); }
+.door::before { content: ""; position: absolute; top: -2px; left: -6px; border: 7px solid transparent; border-bottom: 9px solid var(--sandbox); border-top: 0; }
+
+.sandbox { grid-column: 3; grid-row: 2; border: 4px solid var(--sandbox); background: var(--sandbox-soft); padding: 16px 22px; display: flex; flex-direction: column; gap: 12px; position: relative; }
+.sandbox .head { display: flex; justify-content: space-between; align-items: baseline; }
+.sandbox h2 { color: var(--sandbox); }
+.agent { background: var(--panel); border: 1.5px solid var(--sandbox); padding: 14px 16px; display: flex; gap: 14px; align-items: center; }
+.bot { width: 46px; height: 46px; flex: none; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.list { background: var(--panel); border: 1.5px solid var(--rule); padding: 14px 16px; }
+.list ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; }
+.list li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; font-size: 16px; line-height: 1.35; }
+.yes { color: var(--pass); font-weight: 600; }
+.no  { color: var(--deny); font-weight: 600; }
+.can h3 { color: var(--pass); } .cannot h3 { color: var(--deny); }
+h3 { font: 600 13px var(--mono); letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+.test { margin-top: auto; background: var(--panel); border: 1.5px solid var(--pass); border-left-width: 6px; padding: 11px 14px; display: grid; gap: 3px; }
+.test .label { color: var(--pass); font-weight: 600; }
+.test p { font-size: 15px; line-height: 1.4; }
+
+.proposal { grid-column: 5; grid-row: 2; align-self: center; }
+.file { font: 500 14px/1.35 var(--body); background: var(--paper); border: 1px solid var(--rule); padding: 6px 8px; }
+
+.human { grid-column: 7; grid-row: 2; border: 4px solid var(--gate); background: var(--gate-soft); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.human h2 { color: var(--gate); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.steps li { background: var(--panel); border: 1.5px solid var(--gate); padding: 9px 12px; display: flex; gap: 10px; align-items: flex-start; font-weight: 500; line-height: 1.3; }
+.steps li small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.steps b { font: 600 13px var(--mono); color: var(--panel); background: var(--gate); width: 24px; height: 24px; display: grid; place-items: center; flex: none; }
+.nomerge { margin-top: auto; border-top: 1.5px dashed var(--gate); padding-top: 12px; font-weight: 600; }
+
+.foot { display: flex; justify-content: space-between; align-items: center; border-top: 2px solid var(--ink); padding-top: 14px; }
+.foot .result { font-size: 17px; }
+.foot .result strong { font-family: var(--display); font-size: 19px; }
+</style></head>
+<body>
+<header>
+  <div class="label">docforge · how it works</div>
+  <h1>An AI agent documents your code. <span>A person decides what leaves.</span></h1>
+</header>
+
+<div class="stage">
+  <!-- 1. Your code -->
+  <div class="card code">
+    <div class="step">1 · IN</div>
+    <h2>Your code</h2>
+    <p class="muted">A <strong style="color:var(--ink)">copy</strong> goes into the sandbox. The agent never touches the original.</p>
+    <p class="muted" style="font-size:14px; border-top:1px dashed var(--rule); padding-top:8px">Approved docs come back here in step 4, on a new branch.</p>
+  </div>
+  <div class="arrow" style="grid-column:2"><svg viewBox="0 0 40 24"><path d="M2 12h30M24 4l10 8-10 8" fill="none" stroke="#1b2a33" stroke-width="3"/></svg></div>
+
+  <!-- the one door -->
+  <div class="card api">
+    <div class="label" style="color:var(--sandbox)">the only door out</div>
+    <p><strong>Anthropic's AI service</strong></p>
+    <p class="muted" style="font-size:14px">The access key is added at the door. The agent never sees it.</p>
+  </div>
+  
+  <!-- 2. Sandbox -->
+  <section class="sandbox">
+    <div class="door"></div>
+    <div class="head">
+      <div><div class="step" style="color:var(--sandbox)">2 · AUTONOMY INSIDE</div><h2>Locked sandbox (NVIDIA OpenShell)</h2></div>
+    </div>
+    <div class="agent">
+      <svg class="bot" viewBox="0 0 46 46"><rect x="5" y="12" width="36" height="28" rx="4" fill="#0d7a72"/><circle cx="17" cy="25" r="4" fill="#fff"/><circle cx="29" cy="25" r="4" fill="#fff"/><rect x="16" y="33" width="14" height="3" fill="#fff"/><path d="M23 12V5" stroke="#0d7a72" stroke-width="3"/><circle cx="23" cy="4" r="3" fill="#0d7a72"/></svg>
+      <div><p><strong>The AI agent works on its own</strong></p><p class="muted" style="font-size:15px">Reads the code, works out how it fits together, and writes the documentation.</p></div>
+    </div>
+    <div class="cols">
+      <div class="list can"><h3>It can</h3><ul>
+        <li><span class="yes">✓</span>Read the copy of your code</li>
+        <li><span class="yes">✓</span>Draft documentation (text only)</li>
+        <li><span class="yes">✓</span>Talk to Anthropic's AI, through the one door</li>
+      </ul></div>
+      <div class="list cannot"><h3>It cannot</h3><ul>
+        <li><span class="no">✕</span>Reach any other website. Attempts are blocked and logged</li>
+        <li><span class="no">✕</span>See the access key</li>
+        <li><span class="no">✕</span>Change code or system files</li>
+        <li><span class="no">✕</span>Spend past a hard budget cap</li>
+      </ul></div>
+    </div>
+    <div class="test">
+      <div class="label">Proven by attack · 8 of 8 security checks pass</div>
+      <p><strong>Example:</strong> a test script makes the sandbox try to reach another website (example.com). The connection is refused, and the attempt is written to the log.</p>
+    </div>
+  </section>
+  <div class="arrow" style="grid-column:4"><svg viewBox="0 0 40 24"><path d="M2 12h30M24 4l10 8-10 8" fill="none" stroke="#1b2a33" stroke-width="3"/></svg></div>
+
+  <!-- 3. Proposal -->
+  <div class="card proposal">
+    <div class="step">3 · OUT</div>
+    <h2>A proposal</h2>
+    <p class="muted">Nothing has changed yet. Only suggestions come out:</p>
+    <div class="file">the suggested docs</div>
+    <div class="file">a report of what it found, including gaps</div>
+  </div>
+  <div class="arrow" style="grid-column:6"><svg viewBox="0 0 40 24"><path d="M2 12h30M24 4l10 8-10 8" fill="none" stroke="#1b2a33" stroke-width="3"/></svg></div>
+
+  <!-- 4. Human gate -->
+  <section class="human">
+    <div><div class="step" style="color:var(--gate)">4 · APPROVAL AT THE BORDER</div><h2>Outside the sandbox, you decide each step</h2></div>
+    <ol class="steps">
+      <li><b>1</b><span>Review every line<small>On screen only. Nothing changes yet.</small></span></li>
+      <li><b>2</b><span>Apply to a new branch<small>In your repo. Docs files only; the main version is untouched.</small></span></li>
+      <li><b>3</b><span>Push<small>Sends that branch to GitHub.</small></span></li>
+      <li><b>4</b><span>Open a pull request<small>Asks to merge the docs into main.</small></span></li>
+    </ol>
+    <p class="muted" style="font-size:14px">Before each step, the screen shows exactly what will change or leave the machine.</p>
+    <p class="nomerge">Nothing merges on its own. You merge on GitHub.</p>
+  </section>
+</div>
+
+<footer class="foot">
+  <p class="result">Pilot run: <strong>12 documents + 8 design-decision records for $1.40</strong></p>
+  <p class="label">github.com/beese54/docforge</p>
+</footer>
+</body></html>
